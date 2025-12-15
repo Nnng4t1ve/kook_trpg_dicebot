@@ -12,10 +12,11 @@ from .check_manager import CheckManager
 class MessageHandler:
     """消息处理器"""
     
-    def __init__(self, client, char_manager: CharacterManager, db):
+    def __init__(self, client, char_manager: CharacterManager, db, web_app=None):
         self.client = client
         self.char_manager = char_manager
         self.db = db
+        self.web_app = web_app
         self.check_manager = CheckManager()
         self.command_prefix = "."
     
@@ -242,6 +243,8 @@ class MessageHandler:
         
         if sub_cmd == "new":
             return await self._pc_new(sub_args, user_id)
+        elif sub_cmd == "create":
+            return await self._pc_create_link(user_id)
         elif sub_cmd == "list":
             return await self._pc_list(user_id)
         elif sub_cmd == "switch":
@@ -251,12 +254,22 @@ class MessageHandler:
         elif sub_cmd == "del":
             return await self._pc_delete(sub_args, user_id)
         else:
-            return "未知子命令。可用: new, list, switch, show, del"
+            return "未知子命令。可用: new, create, list, switch, show, del"
+    
+    async def _pc_create_link(self, user_id: str) -> str:
+        """生成在线创建角色卡的链接"""
+        if not self.web_app:
+            return "Web 服务未启用"
+        
+        from ..config import settings
+        token = self.web_app.generate_token(user_id)
+        url = f"{settings.web_base_url}/create/{token}"
+        return f"🎲 点击链接创建角色卡:\n{url}\n\n链接有效期 10 分钟，仅限本人使用"
     
     async def _pc_new(self, json_str: str, user_id: str) -> str:
         """导入角色卡"""
         if not json_str:
-            return "请提供角色卡 JSON 数据"
+            return "请提供角色卡 JSON 数据，或使用 `.pc create` 在线创建"
         
         char, error = CharacterImporter.from_json(json_str, user_id)
         if error:
@@ -399,6 +412,7 @@ class MessageHandler:
 `.check <技能名> [描述]` - 发起检定 (玩家点击按钮骰点)
 
 **角色卡命令**
+`.pc create` - 获取在线创建链接
 `.pc new <JSON>` - 导入角色卡
 `.pc list` - 列出角色卡
 `.pc switch <名称>` - 切换角色卡

@@ -30,6 +30,11 @@ class Settings(BaseSettings):
     heartbeat_interval: int = 30
     reconnect_max_retries: int = 3
     
+    # Web 服务配置
+    web_host: str = Field("0.0.0.0", env="WEB_HOST")
+    web_port: int = Field(8080, env="WEB_PORT")
+    web_base_url: str = Field("http://localhost:8080", env="WEB_BASE_URL")
+    
     class Config:
         env_file = ".env"
         env_file_encoding = "utf-8"

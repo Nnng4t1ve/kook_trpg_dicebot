@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>创建 COC 角色卡</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            min-height: 100vh; padding: 20px; color: #fff;
+        }
+        .container { max-width: 800px; margin: 0 auto; }
+        h1 { text-align: center; margin-bottom: 30px; }
+        .card {
+            background: rgba(255,255,255,0.1);
+            border-radius: 15px; padding: 25px; margin-bottom: 20px;
+        }
+        .card h2 { margin-bottom: 15px; color: #4fc3f7; font-size: 1.2rem; }
+        .form-group { margin-bottom: 15px; }
+        label { display: block; margin-bottom: 5px; color: #aaa; }
+        input, textarea {
+            width: 100%; padding: 12px; border: none; border-radius: 8px;
+            background: rgba(0,0,0,0.3); color: #fff; font-size: 1rem;
+        }
+        input:focus, textarea:focus { outline: 2px solid #4fc3f7; }
+        .attr-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; }
+        .attr-item { text-align: center; }
+        .attr-item label { font-weight: bold; color: #fff; }
+        .attr-item input { text-align: center; }
+        .btn {
+            width: 100%; padding: 15px; border: none; border-radius: 10px;
+            background: linear-gradient(135deg, #4fc3f7, #2196f3);
+            color: #fff; font-size: 1.1rem; font-weight: bold; cursor: pointer;
+        }
+        .btn:hover { opacity: 0.9; }
+        .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        .success { background: #4caf50; padding: 20px; border-radius: 10px; text-align: center; }
+        .error { background: #f44336; padding: 10px; border-radius: 5px; margin-bottom: 15px; }
+        textarea { min-height: 120px; resize: vertical; }
+        .hint { font-size: 0.85rem; color: #888; margin-top: 5px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎲 创建 COC 角色卡</h1>
+        
+        <form id="charForm">
+            <input type="hidden" name="token" value="{{ token }}">
+
+            <div class="card">
+                <h2>📝 基本信息</h2>
+                <div class="form-group">
+                    <label>角色名称 *</label>
+                    <input type="text" name="name" required placeholder="输入角色名称">
+                </div>
+            </div>
+
+            <div class="card">
+                <h2>💪 属性值</h2>
+                <div class="attr-grid">
+                    <div class="attr-item">
+                        <label>STR 力量</label>
+                        <input type="number" name="str_val" value="50" min="1" max="99">
+                    </div>
+                    <div class="attr-item">
+                        <label>CON 体质</label>
+                        <input type="number" name="con" value="50" min="1" max="99">
+                    </div>
+                    <div class="attr-item">
+                        <label>SIZ 体型</label>
+                        <input type="number" name="siz" value="50" min="1" max="99">
+                    </div>
+                    <div class="attr-item">
+                        <label>DEX 敏捷</label>
+                        <input type="number" name="dex" value="50" min="1" max="99">
+                    </div>
+                    <div class="attr-item">
+                        <label>APP 外貌</label>
+                        <input type="number" name="app" value="50" min="1" max="99">
+                    </div>
+                    <div class="attr-item">
+                        <label>INT 智力</label>
+                        <input type="number" name="int_val" value="50" min="1" max="99">
+                    </div>
+                    <div class="attr-item">
+                        <label>POW 意志</label>
+                        <input type="number" name="pow_val" value="50" min="1" max="99">
+                    </div>
+                    <div class="attr-item">
+                        <label>EDU 教育</label>
+                        <input type="number" name="edu" value="50" min="1" max="99">
+                    </div>
+                    <div class="attr-item">
+                        <label>LUK 幸运</label>
+                        <input type="number" name="luk" value="50" min="1" max="99">
+                    </div>
+                </div>
+            </div>
+
+            <div class="card">
+                <h2>❤️ 派生属性</h2>
+                <div class="attr-grid">
+                    <div class="attr-item">
+                        <label>HP 生命</label>
+                        <input type="number" name="hp" value="10" min="1" max="99">
+                    </div>
+                    <div class="attr-item">
+                        <label>MP 魔法</label>
+                        <input type="number" name="mp" value="10" min="1" max="99">
+                    </div>
+                    <div class="attr-item">
+                        <label>SAN 理智</label>
+                        <input type="number" name="san" value="50" min="0" max="99">
+                    </div>
+                </div>
+            </div>
+
+            <div class="card">
+                <h2>🎯 技能</h2>
+                <div class="form-group">
+                    <label>技能列表</label>
+                    <textarea name="skills" placeholder="每行一个技能，格式：技能名:数值
+例如：
+侦查:60
+图书馆:50
+聆听:40
+心理学:35"></textarea>
+                    <p class="hint">每行一个技能，格式为「技能名:数值」</p>
+                </div>
+            </div>
+
+            <button type="submit" class="btn" id="submitBtn">✨ 创建角色卡</button>
+            <button type="button" class="btn" id="exportBtn" style="margin-top:10px; background: linear-gradient(135deg, #9c27b0, #673ab7);">📋 生成导入指令</button>
+        </form>
+
+        <div id="result" style="display:none;"></div>
+        <div id="exportResult" style="display:none;" class="card">
+            <h2>📋 导入指令</h2>
+            <p class="hint">复制以下内容到 KOOK 发送即可导入角色卡：</p>
+            <textarea id="exportText" readonly style="margin-top:10px; min-height:80px;"></textarea>
+            <button type="button" class="btn" id="copyBtn" style="margin-top:10px;">复制到剪贴板</button>
+        </div>
+    </div>
+
+    <script>
+        function getFormData() {
+            const form = document.getElementById('charForm');
+            const data = new FormData(form);
+            const name = data.get('name');
+            const skills = {};
+            const skillsText = data.get('skills').trim();
+            if (skillsText) {
+                skillsText.split('\n').forEach(line => {
+                    line = line.replace('：', ':');
+                    if (line.includes(':')) {
+                        const [k, v] = line.split(':');
+                        const val = parseInt(v.trim());
+                        if (!isNaN(val)) skills[k.trim()] = val;
+                    }
+                });
+            }
+            return {
+                name: name,
+                attributes: {
+                    STR: parseInt(data.get('str_val')),
+                    CON: parseInt(data.get('con')),
+                    SIZ: parseInt(data.get('siz')),
+                    DEX: parseInt(data.get('dex')),
+                    APP: parseInt(data.get('app')),
+                    INT: parseInt(data.get('int_val')),
+                    POW: parseInt(data.get('pow_val')),
+                    EDU: parseInt(data.get('edu')),
+                    LUK: parseInt(data.get('luk'))
+                },
+                skills: skills,
+                hp: parseInt(data.get('hp')),
+                mp: parseInt(data.get('mp')),
+                san: parseInt(data.get('san'))
+            };
+        }
+        
+        document.getElementById('exportBtn').addEventListener('click', () => {
+            const charData = getFormData();
+            if (!charData.name) {
+                alert('请先填写角色名称');
+                return;
+            }
+            const json = JSON.stringify(charData);
+            const cmd = '.pc new ' + json;
+            document.getElementById('exportText').value = cmd;
+            document.getElementById('exportResult').style.display = 'block';
+        });
+        
+        document.getElementById('copyBtn').addEventListener('click', () => {
+            const text = document.getElementById('exportText');
+            text.select();
+            document.execCommand('copy');
+            document.getElementById('copyBtn').textContent = '✅ 已复制';
+            setTimeout(() => {
+                document.getElementById('copyBtn').textContent = '复制到剪贴板';
+            }, 2000);
+        });
+
+        document.getElementById('charForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const btn = document.getElementById('submitBtn');
+            btn.disabled = true;
+            btn.textContent = '创建中...';
+            
+            const formData = new FormData(e.target);
+            
+            try {
+                const resp = await fetch('/api/character/create', {
+                    method: 'POST',
+                    body: formData
+                });
+                const data = await resp.json();
+                
+                if (data.success) {
+                    document.getElementById('charForm').style.display = 'none';
+                    document.getElementById('result').innerHTML = 
+                        '<div class="success"><h2>✅ ' + data.message + '</h2><p>返回 KOOK 使用 .pc show 查看角色卡</p></div>';
+                    document.getElementById('result').style.display = 'block';
+                } else {
+                    alert('创建失败: ' + (data.detail || data.message));
+                    btn.disabled = false;
+                    btn.textContent = '✨ 创建角色卡';
+                }
+            } catch (err) {
+                alert('请求失败: ' + err.message);
+                btn.disabled = false;
+                btn.textContent = '✨ 创建角色卡';
+            }
+        });
+    </script>
+</body>
+</html>

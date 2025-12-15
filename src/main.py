@@ -3,6 +3,7 @@ import asyncio
 import sys
 from pathlib import Path
 from loguru import logger
+import uvicorn
 
 # 添加项目根目录到路径
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -11,6 +12,7 @@ from src.config import settings
 from src.bot import KookClient, MessageHandler
 from src.character import CharacterManager
 from src.storage import Database
+from src.web import create_app
 
 
 def setup_logging():
@@ -56,12 +58,30 @@ async def main():
     # 初始化客户端
     client = KookClient(settings.kook_token, settings.kook_api_base)
     
-    # 初始化消息处理器
-    handler = MessageHandler(client, char_manager, db)
+    # 创建 Web 应用
+    web_app = create_app(db, char_manager)
+    
+    # 初始化消息处理器，传入 web_app 以生成创建链接
+    handler = MessageHandler(client, char_manager, db, web_app)
+    
+    # 启动 Web 服务器
+    web_config = uvicorn.Config(
+        web_app,
+        host=settings.web_host,
+        port=settings.web_port,
+        log_level="warning"
+    )
+    web_server = uvicorn.Server(web_config)
     
     try:
+        logger.info(f"Web 服务启动: {settings.web_base_url}")
         logger.info("正在连接 KOOK...")
-        await client.start(handler.handle)
+        
+        # 同时运行 Web 服务和 Bot
+        await asyncio.gather(
+            web_server.serve(),
+            client.start(handler.handle)
+        )
     except KeyboardInterrupt:
         logger.info("收到退出信号")
     finally:
