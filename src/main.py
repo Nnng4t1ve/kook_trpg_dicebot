@@ -39,10 +39,16 @@ async def main():
     setup_logging()
     logger.info("COC Dice Bot 启动中...")
     
-    # 初始化数据库
-    db = Database(settings.database_path)
+    # 初始化 MySQL 数据库
+    db = Database(
+        host=settings.db_host,
+        port=settings.db_port,
+        user=settings.db_user,
+        password=settings.db_password,
+        database=settings.db_name,
+    )
     await db.connect()
-    logger.info("数据库连接成功")
+    logger.info("MySQL 数据库连接成功")
     
     # 初始化角色管理器
     char_manager = CharacterManager(db)
