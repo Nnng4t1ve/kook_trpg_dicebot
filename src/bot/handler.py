@@ -165,6 +165,7 @@ class MessageHandler:
         
         handlers = {
             "r": self._cmd_roll,
+            "rd": self._cmd_roll,  # .rd 也支持骰点
             "ra": self._cmd_roll_attribute,
             "rc": self._cmd_roll_check,
             "pc": self._cmd_character,
@@ -390,7 +391,7 @@ class MessageHandler:
         return """**COC Dice Bot 帮助**
 
 **骰点命令**
-`.r <表达式>` - 骰点 (如 .r 1d100, .r 3d6+5)
+`.r / .rd <表达式>` - 骰点 (如 .rd 1d100, .r 3d6+5)
 `.ra <技能名>` - 技能检定 (需要角色卡)
 `.rc <技能名> <值>` - 指定值检定
 
