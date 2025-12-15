@@ -1,0 +1,43 @@
+"""角色卡导入器"""
+import json
+from typing import Optional, Tuple
+from .models import Character
+
+
+class CharacterImporter:
+    """角色卡导入器"""
+    
+    @staticmethod
+    def from_json(json_str: str, user_id: str) -> Tuple[Optional[Character], Optional[str]]:
+        """从 JSON 字符串导入角色卡"""
+        try:
+            data = json.loads(json_str)
+        except json.JSONDecodeError as e:
+            return None, f"JSON 解析错误: {e}"
+        
+        # 验证必要字段
+        if "name" not in data:
+            return None, "缺少必要字段: name"
+        
+        # 提取属性
+        attributes = data.get("attributes", {})
+        skills = data.get("skills", {})
+        
+        # 计算派生属性
+        hp = data.get("hp", 0)
+        mp = data.get("mp", 0)
+        san = data.get("san", attributes.get("POW", 0))
+        luck = attributes.get("LUK", data.get("luck", 0))
+        
+        char = Character(
+            name=data["name"],
+            user_id=user_id,
+            attributes=attributes,
+            skills=skills,
+            hp=hp, max_hp=hp,
+            mp=mp, max_mp=mp,
+            san=san, max_san=99,
+            luck=luck
+        )
+        
+        return char, None
