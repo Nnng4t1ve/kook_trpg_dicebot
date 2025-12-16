@@ -74,7 +74,28 @@ def generate_npc(name: str, template_id: int = 1, user_id: str = "npc") -> Optio
     hp = (attributes["CON"] + attributes["SIZ"]) // 10
     mp = attributes["POW"] // 5
     san = attributes["POW"]
-    
+
+    # 计算体格和伤害加值 (基于 STR + SIZ)
+    str_siz = attributes["STR"] + attributes["SIZ"]
+    if str_siz <= 64:
+        build = -2
+        db = "-2"
+    elif str_siz <= 84:
+        build = -1
+        db = "-1"
+    elif str_siz <= 124:
+        build = 0
+        db = "0"
+    elif str_siz <= 164:
+        build = 1
+        db = "+1D4"
+    elif str_siz <= 204:
+        build = 2
+        db = "+1D6"
+    else:
+        build = 3
+        db = "+2D6"
+
     return Character(
         name=name,
         user_id=user_id,
@@ -87,6 +108,8 @@ def generate_npc(name: str, template_id: int = 1, user_id: str = "npc") -> Optio
         san=san,
         max_san=99,
         luck=random.randint(15, 90),
+        build=build,
+        db=db,
     )
 
 

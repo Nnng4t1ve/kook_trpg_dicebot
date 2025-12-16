@@ -1448,7 +1448,7 @@ class MessageHandler:
         skills = " | ".join(f"{k}:{v}" for k, v in npc.skills.items())
         return (
             f"**{npc.name}**\n"
-            f"HP: {npc.hp}/{npc.max_hp} | MP: {npc.mp}/{npc.max_mp}\n"
+            f"HP: {npc.hp}/{npc.max_hp} | MP: {npc.mp}/{npc.max_mp} | 体格: {npc.build} | DB: {npc.db}\n"
             f"属性: {attrs}\n"
             f"技能: {skills}",
             False,
