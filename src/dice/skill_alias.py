@@ -117,17 +117,17 @@ SKILL_ALIASES = {
     "炮术": "炮术", "artillery": "炮术",
     
     # ===== 格斗技能 =====
-    # 斗殴（徒手）
-    "斗殴": "格斗:斗殴", "格斗": "格斗:斗殴", "肉搏": "格斗:斗殴", "brawl": "格斗:斗殴",
-    "拳击": "格斗:斗殴", "徒手": "格斗:斗殴", "格斗:斗殴": "格斗:斗殴",
+    # 斗殴（徒手）- 使用中文冒号与数据库一致
+    "斗殴": "格斗：斗殴", "格斗": "格斗：斗殴", "肉搏": "格斗：斗殴", "brawl": "格斗：斗殴",
+    "拳击": "格斗：斗殴", "徒手": "格斗：斗殴", "格斗:斗殴": "格斗：斗殴", "格斗：斗殴": "格斗：斗殴",
     # 剑
-    "剑": "格斗:剑", "格斗:剑": "格斗:剑", "sword": "格斗:剑",
-    "长剑": "格斗:剑", "短剑": "格斗:剑", "刀剑": "格斗:剑",
+    "剑": "格斗：剑", "格斗:剑": "格斗：剑", "格斗：剑": "格斗：剑", "sword": "格斗：剑",
+    "长剑": "格斗：剑", "短剑": "格斗：剑", "刀剑": "格斗：剑",
     # 斧
-    "斧": "格斗:斧", "格斗:斧": "格斗:斧", "axe": "格斗:斧",
-    "斧头": "格斗:斧", "战斧": "格斗:斧",
+    "斧": "格斗：斧", "格斗:斧": "格斗：斧", "格斗：斧": "格斗：斧", "axe": "格斗：斧",
+    "斧头": "格斗：斧", "战斧": "格斗：斧",
     # 矛
-    "矛": "格斗:矛", "格斗:矛": "格斗:矛", "spear": "格斗:矛",
+    "矛": "格斗：矛", "格斗:矛": "格斗：矛", "格斗：矛": "格斗：矛", "spear": "格斗：矛",
     "长矛": "格斗:矛", "枪": "格斗:矛",
     # 鞭
     "鞭": "格斗:鞭", "格斗:鞭": "格斗:鞭", "whip": "格斗:鞭",
@@ -227,23 +227,40 @@ SKILL_ALIASES = {
 
 class SkillResolver:
     """技能名称解析器"""
-    
     def __init__(self):
         # 合并所有别名（小写化）
         self._aliases = {}
         for alias, standard in ATTRIBUTE_ALIASES.items():
             self._aliases[alias.lower()] = standard
         for alias, standard in SKILL_ALIASES.items():
-            self._aliases[alias.lower()] = standard
-    
+            # 统一使用中文冒号作为标准格式
+            standard_normalized = standard.replace(":", "：")
+            alias_lower = alias.lower()
+            self._aliases[alias_lower] = standard_normalized
+            # 同时添加冒号转换后的别名
+            if ":" in alias_lower:
+                self._aliases[alias_lower.replace(":", "：")] = standard_normalized
+            if "：" in alias_lower:
+                self._aliases[alias_lower.replace("：", ":")] = standard_normalized
+
     def resolve(self, name: str) -> str:
         """解析技能/属性名称，返回标准名称"""
         name_lower = name.lower().strip()
-        
+
         # 先查别名表
         if name_lower in self._aliases:
             return self._aliases[name_lower]
-        
+
+        # 尝试冒号转换后查找
+        if ":" in name_lower:
+            converted = name_lower.replace(":", "：")
+            if converted in self._aliases:
+                return self._aliases[converted]
+        if "：" in name_lower:
+            converted = name_lower.replace("：", ":")
+            if converted in self._aliases:
+                return self._aliases[converted]
+
         # 没找到就返回原名（可能是用户自定义技能）
         return name
     
