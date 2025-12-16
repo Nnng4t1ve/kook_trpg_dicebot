@@ -6,9 +6,11 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from pathlib import Path
 import secrets
+from loguru import logger
 
 from ..character import Character, CharacterManager
 from ..storage import Database
+from ..data import SKILLS_BY_CATEGORY
 
 
 def create_app(db: Database, char_manager: CharacterManager) -> FastAPI:
@@ -42,9 +44,12 @@ def create_app(db: Database, char_manager: CharacterManager) -> FastAPI:
     @app.get("/create/{token}", response_class=HTMLResponse)
     async def create_page(request: Request, token: str):
         """角色卡创建页面"""
+        logger.info(f"访问创建页面: token={token}, 当前tokens={list(user_tokens.keys())}")
         user_id = get_user_from_token(token)
         if not user_id:
+            logger.warning(f"Token 无效或过期: {token}")
             raise HTTPException(status_code=404, detail="链接已过期或无效")
+        logger.info(f"Token 验证成功: user_id={user_id}")
         return templates.TemplateResponse(
             "create.html", 
             {"request": request, "token": token, "user_id": user_id}
@@ -106,10 +111,16 @@ def create_app(db: Database, char_manager: CharacterManager) -> FastAPI:
         chars = await char_manager.list_all(user_id)
         return {"characters": [c.to_dict() for c in chars]}
     
+    @app.get("/api/skills")
+    async def get_skills():
+        """获取技能列表"""
+        return {"skills": SKILLS_BY_CATEGORY}
+    
     def generate_token(user_id: str) -> str:
         """生成用户创建链接的 token"""
         token = secrets.token_urlsafe(16)
         user_tokens[token] = (user_id, time.time())
+        logger.info(f"生成 token: {token} -> user_id={user_id}, 当前tokens数量={len(user_tokens)}")
         return token
     
     # 将 generate_token 方法附加到 app

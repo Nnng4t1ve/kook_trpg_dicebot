@@ -1,239 +1,652 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>创建 COC 角色卡</title>
+    <title>创建 COC7 角色卡</title>
     <style>
-        * { box-sizing: border-box; margin: 0; padding: 0; }
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
         body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            font-family: -apple-system, BlinkMacSystemFont, sans-serif;
             background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
-            min-height: 100vh; padding: 20px; color: #fff;
+            min-height: 100vh;
+            padding: 15px;
+            color: #fff;
         }
-        .container { max-width: 800px; margin: 0 auto; }
-        h1 { text-align: center; margin-bottom: 30px; }
+
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+        }
+
+        h1 {
+            text-align: center;
+            margin-bottom: 20px;
+            font-size: 1.5rem;
+        }
+
         .card {
-            background: rgba(255,255,255,0.1);
-            border-radius: 15px; padding: 25px; margin-bottom: 20px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 12px;
+            padding: 15px;
+            margin-bottom: 15px;
         }
-        .card h2 { margin-bottom: 15px; color: #4fc3f7; font-size: 1.2rem; }
-        .form-group { margin-bottom: 15px; }
-        label { display: block; margin-bottom: 5px; color: #aaa; }
-        input, textarea {
-            width: 100%; padding: 12px; border: none; border-radius: 8px;
-            background: rgba(0,0,0,0.3); color: #fff; font-size: 1rem;
+
+        .card h2 {
+            margin-bottom: 12px;
+            color: #4fc3f7;
+            font-size: 1rem;
         }
-        input:focus, textarea:focus { outline: 2px solid #4fc3f7; }
-        .attr-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; }
-        .attr-item { text-align: center; }
-        .attr-item label { font-weight: bold; color: #fff; }
-        .attr-item input { text-align: center; }
+
+        label {
+            display: block;
+            margin-bottom: 4px;
+            color: #aaa;
+            font-size: 0.85rem;
+        }
+
+        input {
+            width: 100%;
+            padding: 8px;
+            border: none;
+            border-radius: 6px;
+            background: rgba(0, 0, 0, 0.3);
+            color: #fff;
+            font-size: 0.9rem;
+        }
+
+        input:focus {
+            outline: 2px solid #4fc3f7;
+        }
+
+        input[readonly] {
+            background: rgba(79, 195, 247, 0.15);
+            color: #4fc3f7;
+        }
+
+        .attr-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 10px;
+        }
+
+        .attr-item {
+            text-align: center;
+        }
+
+        .attr-item label {
+            font-weight: bold;
+            color: #fff;
+            font-size: 0.8rem;
+        }
+
+        .attr-item input {
+            text-align: center;
+            padding: 6px;
+        }
+
+        .attr-item .formula {
+            font-size: 0.65rem;
+            color: #888;
+            font-weight: normal;
+        }
+
+        .btn-random {
+            padding: 4px 10px;
+            border: none;
+            border-radius: 5px;
+            background: linear-gradient(135deg, #ff9800, #f57c00);
+            color: #fff;
+            font-size: 0.8rem;
+            cursor: pointer;
+            margin-left: 10px;
+        }
+
+        .btn-random:hover {
+            opacity: 0.9;
+        }
+
+        .attr-total {
+            display: flex;
+            justify-content: space-around;
+            margin-top: 12px;
+            padding: 10px;
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 8px;
+            font-size: 0.9rem;
+        }
+
+        .attr-total strong {
+            color: #4fc3f7;
+            font-size: 1.1rem;
+        }
+
+        .derived-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 8px;
+        }
+
+        .derived-item {
+            text-align: center;
+            background: rgba(0, 0, 0, 0.2);
+            padding: 8px;
+            border-radius: 8px;
+        }
+
+        .derived-item .label {
+            font-size: 0.75rem;
+            color: #81d4fa;
+        }
+
+        .derived-item .value {
+            font-size: 1.1rem;
+            font-weight: bold;
+            color: #4fc3f7;
+        }
+
         .btn {
-            width: 100%; padding: 15px; border: none; border-radius: 10px;
+            width: 100%;
+            padding: 12px;
+            border: none;
+            border-radius: 8px;
             background: linear-gradient(135deg, #4fc3f7, #2196f3);
-            color: #fff; font-size: 1.1rem; font-weight: bold; cursor: pointer;
+            color: #fff;
+            font-size: 1rem;
+            font-weight: bold;
+            cursor: pointer;
         }
-        .btn:hover { opacity: 0.9; }
-        .btn:disabled { opacity: 0.5; cursor: not-allowed; }
-        .success { background: #4caf50; padding: 20px; border-radius: 10px; text-align: center; }
-        .error { background: #f44336; padding: 10px; border-radius: 5px; margin-bottom: 15px; }
-        textarea { min-height: 120px; resize: vertical; }
-        .hint { font-size: 0.85rem; color: #888; margin-top: 5px; }
+
+        .btn:hover {
+            opacity: 0.9;
+        }
+
+        .btn:disabled {
+            opacity: 0.5;
+        }
+
+        .btn-secondary {
+            background: linear-gradient(135deg, #9c27b0, #673ab7);
+            margin-top: 8px;
+        }
+
+        .success {
+            background: #4caf50;
+            padding: 20px;
+            border-radius: 10px;
+            text-align: center;
+        }
+
+        .hint {
+            font-size: 0.75rem;
+            color: #888;
+        }
     </style>
 </head>
+
 <body>
     <div class="container">
-        <h1>🎲 创建 COC 角色卡</h1>
-        
+        <h1>🎲 创建 COC7 角色卡</h1>
         <form id="charForm">
             <input type="hidden" name="token" value="{{ token }}">
-
             <div class="card">
                 <h2>📝 基本信息</h2>
-                <div class="form-group">
-                    <label>角色名称 *</label>
-                    <input type="text" name="name" required placeholder="输入角色名称">
-                </div>
+                <label>角色名称 *</label>
+                <input type="text" name="name" id="charName" required placeholder="输入角色名称">
             </div>
-
             <div class="card">
-                <h2>💪 属性值</h2>
+                <h2>💪 属性值 <button type="button" class="btn-random" id="randomAllBtn">🎲 随机全部</button></h2>
                 <div class="attr-grid">
-                    <div class="attr-item">
-                        <label>STR 力量</label>
-                        <input type="number" name="str_val" value="50" min="1" max="99">
-                    </div>
-                    <div class="attr-item">
-                        <label>CON 体质</label>
-                        <input type="number" name="con" value="50" min="1" max="99">
-                    </div>
-                    <div class="attr-item">
-                        <label>SIZ 体型</label>
-                        <input type="number" name="siz" value="50" min="1" max="99">
-                    </div>
-                    <div class="attr-item">
-                        <label>DEX 敏捷</label>
-                        <input type="number" name="dex" value="50" min="1" max="99">
-                    </div>
-                    <div class="attr-item">
-                        <label>APP 外貌</label>
-                        <input type="number" name="app" value="50" min="1" max="99">
-                    </div>
-                    <div class="attr-item">
-                        <label>INT 智力</label>
-                        <input type="number" name="int_val" value="50" min="1" max="99">
-                    </div>
-                    <div class="attr-item">
-                        <label>POW 意志</label>
-                        <input type="number" name="pow_val" value="50" min="1" max="99">
-                    </div>
-                    <div class="attr-item">
-                        <label>EDU 教育</label>
-                        <input type="number" name="edu" value="50" min="1" max="99">
-                    </div>
-                    <div class="attr-item">
-                        <label>LUK 幸运</label>
-                        <input type="number" name="luk" value="50" min="1" max="99">
-                    </div>
+                    <div class="attr-item"><label>STR 力量 <span class="formula">3D6×5</span></label><input type="number"
+                            id="str" value="50" min="1" max="99"></div>
+                    <div class="attr-item"><label>CON 体质 <span class="formula">3D6×5</span></label><input type="number"
+                            id="con" value="50" min="1" max="99"></div>
+                    <div class="attr-item"><label>SIZ 体型 <span class="formula">(2D6+6)×5</span></label><input
+                            type="number" id="siz" value="50" min="1" max="99"></div>
+                    <div class="attr-item"><label>DEX 敏捷 <span class="formula">3D6×5</span></label><input type="number"
+                            id="dex" value="50" min="1" max="99"></div>
+                    <div class="attr-item"><label>APP 外貌 <span class="formula">3D6×5</span></label><input type="number"
+                            id="app" value="50" min="1" max="99"></div>
+                    <div class="attr-item"><label>INT 智力 <span class="formula">(2D6+6)×5</span></label><input
+                            type="number" id="int" value="50" min="1" max="99"></div>
+                    <div class="attr-item"><label>POW 意志 <span class="formula">3D6×5</span></label><input type="number"
+                            id="pow" value="50" min="1" max="99"></div>
+                    <div class="attr-item"><label>EDU 教育 <span class="formula">(2D6+6)×5</span></label><input
+                            type="number" id="edu" value="50" min="1" max="99"></div>
+                    <div class="attr-item"><label>LUK 幸运 <span class="formula">3D6×5</span></label><input type="number"
+                            id="luk" value="50" min="1" max="99"></div>
+                </div>
+                <div class="attr-total">
+                    <span>总计(不含幸运): <strong id="totalNoLuk">400</strong></span>
+                    <span>总计(含幸运): <strong id="totalWithLuk">450</strong></span>
                 </div>
             </div>
-
             <div class="card">
-                <h2>❤️ 派生属性</h2>
-                <div class="attr-grid">
-                    <div class="attr-item">
-                        <label>HP 生命</label>
-                        <input type="number" name="hp" value="10" min="1" max="99">
+                <h2>❤️ 派生属性 (自动计算)</h2>
+                <div class="derived-grid">
+                    <div class="derived-item">
+                        <div class="label">HP</div>
+                        <div class="value" id="hp">10</div>
                     </div>
-                    <div class="attr-item">
-                        <label>MP 魔法</label>
-                        <input type="number" name="mp" value="10" min="1" max="99">
+                    <div class="derived-item">
+                        <div class="label">MP</div>
+                        <div class="value" id="mp">10</div>
                     </div>
-                    <div class="attr-item">
-                        <label>SAN 理智</label>
-                        <input type="number" name="san" value="50" min="0" max="99">
+                    <div class="derived-item">
+                        <div class="label">SAN</div>
+                        <div class="value" id="san">50</div>
+                    </div>
+                    <div class="derived-item">
+                        <div class="label">MOV</div>
+                        <div class="value" id="mov">8</div>
+                    </div>
+                    <div class="derived-item">
+                        <div class="label">体格</div>
+                        <div class="value" id="build">0</div>
+                    </div>
+                    <div class="derived-item">
+                        <div class="label">伤害加值</div>
+                        <div class="value" id="db">0</div>
                     </div>
                 </div>
             </div>
-
             <div class="card">
-                <h2>🎯 技能</h2>
-                <div class="form-group">
-                    <label>技能列表</label>
-                    <textarea name="skills" placeholder="每行一个技能，格式：技能名:数值
-例如：
-侦查:60
-图书馆:50
-聆听:40
-心理学:35"></textarea>
-                    <p class="hint">每行一个技能，格式为「技能名:数值」</p>
+                <h2>🎯 技能 <span class="hint">(基础+成长+职业+兴趣=成功率)</span></h2>
+                <div id="skillsContainer">
+                    <p class="hint">加载中...</p>
                 </div>
             </div>
-
             <button type="submit" class="btn" id="submitBtn">✨ 创建角色卡</button>
-            <button type="button" class="btn" id="exportBtn" style="margin-top:10px; background: linear-gradient(135deg, #9c27b0, #673ab7);">📋 生成导入指令</button>
+            <button type="button" class="btn btn-secondary" id="exportBtn">📋 生成导入指令</button>
         </form>
-
         <div id="result" style="display:none;"></div>
         <div id="exportResult" style="display:none;" class="card">
             <h2>📋 导入指令</h2>
-            <p class="hint">复制以下内容到 KOOK 发送即可导入角色卡：</p>
-            <textarea id="exportText" readonly style="margin-top:10px; min-height:80px;"></textarea>
-            <button type="button" class="btn" id="copyBtn" style="margin-top:10px;">复制到剪贴板</button>
+            <textarea id="exportText" readonly
+                style="width:100%;min-height:60px;margin-top:8px;background:rgba(0,0,0,0.3);color:#fff;border:none;border-radius:6px;padding:8px;"></textarea>
+            <button type="button" class="btn btn-secondary" id="copyBtn" style="margin-top:8px;">复制</button>
         </div>
     </div>
 
+    <style>
+        .skill-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.8rem;
+        }
+
+        .skill-table th {
+            background: rgba(0, 0, 0, 0.3);
+            padding: 6px 4px;
+            text-align: center;
+            color: #81d4fa;
+            font-weight: normal;
+        }
+
+        .skill-table td {
+            padding: 4px 2px;
+            text-align: center;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .skill-table .skill-name {
+            text-align: left;
+            padding-left: 8px;
+            color: #ccc;
+        }
+
+        .skill-table input {
+            width: 50px;
+            padding: 6px 4px;
+            text-align: center;
+            font-size: 0.85rem;
+        }
+
+        .skill-table .base {
+            color: #888;
+        }
+
+        .skill-table .total {
+            color: #4fc3f7;
+            font-weight: bold;
+        }
+
+        .skill-table .custom-name {
+            background: rgba(255, 193, 7, 0.2);
+            border: 1px dashed #ffc107;
+            color: #ffc107;
+        }
+
+        .skill-table .custom-base {
+            background: rgba(255, 193, 7, 0.2);
+            border: 1px dashed #ffc107;
+            color: #ffc107;
+        }
+
+        .skill-category {
+            margin-bottom: 15px;
+        }
+
+        .skill-category h3 {
+            font-size: 0.85rem;
+            color: #81d4fa;
+            margin-bottom: 8px;
+            padding: 5px;
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 5px;
+        }
+    </style>
     <script>
-        function getFormData() {
-            const form = document.getElementById('charForm');
-            const data = new FormData(form);
-            const name = data.get('name');
-            const skills = {};
-            const skillsText = data.get('skills').trim();
-            if (skillsText) {
-                skillsText.split('\n').forEach(line => {
-                    line = line.replace('：', ':');
-                    if (line.includes(':')) {
-                        const [k, v] = line.split(':');
-                        const val = parseInt(v.trim());
-                        if (!isNaN(val)) skills[k.trim()] = val;
-                    }
-                });
+        // 骰子函数
+        function rollD6() {
+            return Math.floor(Math.random() * 6) + 1;
+        }
+
+        function roll3D6x5() {
+            return (rollD6() + rollD6() + rollD6()) * 5;
+        }
+
+        function roll2D6plus6x5() {
+            return (rollD6() + rollD6() + 6) * 5;
+        }
+
+        // 随机全部属性
+        function randomAllAttributes() {
+            document.getElementById('str').value = roll3D6x5();
+            document.getElementById('con').value = roll3D6x5();
+            document.getElementById('siz').value = roll2D6plus6x5();
+            document.getElementById('dex').value = roll3D6x5();
+            document.getElementById('app').value = roll3D6x5();
+            document.getElementById('int').value = roll2D6plus6x5();
+            document.getElementById('pow').value = roll3D6x5();
+            document.getElementById('edu').value = roll2D6plus6x5();
+            document.getElementById('luk').value = roll3D6x5();
+            updateAttrTotal();
+            updateDerived();
+        }
+
+        // 更新属性总值
+        function updateAttrTotal() {
+            const str = parseInt(document.getElementById('str').value) || 0;
+            const con = parseInt(document.getElementById('con').value) || 0;
+            const siz = parseInt(document.getElementById('siz').value) || 0;
+            const dex = parseInt(document.getElementById('dex').value) || 0;
+            const app = parseInt(document.getElementById('app').value) || 0;
+            const int = parseInt(document.getElementById('int').value) || 0;
+            const pow = parseInt(document.getElementById('pow').value) || 0;
+            const edu = parseInt(document.getElementById('edu').value) || 0;
+            const luk = parseInt(document.getElementById('luk').value) || 0;
+
+            const totalNoLuk = str + con + siz + dex + app + int + pow + edu;
+            const totalWithLuk = totalNoLuk + luk;
+
+            document.getElementById('totalNoLuk').textContent = totalNoLuk;
+            document.getElementById('totalWithLuk').textContent = totalWithLuk;
+        }
+
+        // 绑定随机按钮
+        document.getElementById('randomAllBtn').addEventListener('click', randomAllAttributes);
+
+        function calcBuildDB(strSiz) {
+            if (strSiz <= 64) return { build: -2, db: "-2" };
+            if (strSiz <= 84) return { build: -1, db: "-1" };
+            if (strSiz <= 124) return { build: 0, db: "0" };
+            if (strSiz <= 164) return { build: 1, db: "+1d4" };
+            if (strSiz <= 204) return { build: 2, db: "+1d6" };
+            if (strSiz <= 284) return { build: 3, db: "+2d6" };
+            if (strSiz <= 364) return { build: 4, db: "+3d6" };
+            return { build: 5, db: "+4d6" };
+        }
+
+        function updateDerived() {
+            const str = parseInt(document.getElementById('str').value) || 50;
+            const con = parseInt(document.getElementById('con').value) || 50;
+            const siz = parseInt(document.getElementById('siz').value) || 50;
+            const dex = parseInt(document.getElementById('dex').value) || 50;
+            const pow = parseInt(document.getElementById('pow').value) || 50;
+            const edu = parseInt(document.getElementById('edu').value) || 50;
+
+            document.getElementById('hp').textContent = Math.floor((con + siz) / 10);
+            document.getElementById('mp').textContent = Math.floor(pow / 5);
+            document.getElementById('san').textContent = pow;
+
+            let mov = 8;
+            if (str > siz && dex > siz) mov = 9;
+            else if (str < siz && dex < siz) mov = 7;
+            document.getElementById('mov').textContent = mov;
+
+            const { build, db } = calcBuildDB(str + siz);
+            document.getElementById('build').textContent = build;
+            document.getElementById('db').textContent = db;
+
+            // 更新闪避和母语的基础值（它们在技能栏中）
+            document.querySelectorAll('[data-skill="闪避"] .base').forEach(el => {
+                if (el.tagName !== 'INPUT') el.textContent = Math.floor(dex / 2);
+            });
+            document.querySelectorAll('[data-skill="母语:"] .base').forEach(el => {
+                if (el.tagName !== 'INPUT') el.textContent = edu;
+            });
+            updateAllSkillTotals();
+        }
+
+        function updateSkillTotal(row) {
+            // 基础值可能是文本或输入框
+            const baseEl = row.querySelector('.base');
+            const base = baseEl.tagName === 'INPUT'
+                ? (parseInt(baseEl.value) || 0)
+                : (parseInt(baseEl.textContent) || 0);
+            const growth = parseInt(row.querySelector('.growth').value) || 0;
+            const job = parseInt(row.querySelector('.job').value) || 0;
+            const hobby = parseInt(row.querySelector('.hobby').value) || 0;
+            const total = base + growth + job + hobby;
+            row.querySelector('.total').textContent = total;
+        }
+
+        function updateAllSkillTotals() {
+            document.querySelectorAll('.skill-row').forEach(updateSkillTotal);
+        }
+
+        ['str', 'con', 'siz', 'dex', 'pow', 'edu', 'int', 'app', 'luk'].forEach(id => {
+            document.getElementById(id).addEventListener('input', () => {
+                updateAttrTotal();
+                updateDerived();
+            });
+        });
+
+        async function loadSkills() {
+            try {
+                const resp = await fetch('/api/skills');
+                const data = await resp.json();
+                renderSkills(data.skills);
+                updateDerived();
+            } catch (e) {
+                document.getElementById('skillsContainer').innerHTML = '<p style="color:red;">加载失败</p>';
             }
+        }
+
+        let skillIndex = 0; // 用于生成唯一ID
+
+        function renderSkills(skillsByCategory) {
+            const container = document.getElementById('skillsContainer');
+            container.innerHTML = '';
+            skillIndex = 0;
+
+            // 获取当前属性值用于计算闪避和母语基础值
+            const dex = parseInt(document.getElementById('dex').value) || 50;
+            const edu = parseInt(document.getElementById('edu').value) || 50;
+
+            for (const [category, skills] of Object.entries(skillsByCategory)) {
+                const catDiv = document.createElement('div');
+                catDiv.className = 'skill-category';
+
+                let html = `<h3>${category}</h3><table class="skill-table">
+            <tr><th>技能</th><th>基础</th><th>成长</th><th>职业</th><th>兴趣</th><th>成功率</th></tr>`;
+
+                for (const skill of skills) {
+                    const { name, initial, customName, customBase } = skill;
+                    const isCM = name === '克苏鲁神话';
+                    const isCustom = customName || customBase;
+                    const rowId = `skill_${skillIndex++}`;
+
+                    // 闪避基础值 = DEX/2，母语基础值 = EDU
+                    let baseValue = initial;
+                    const isFlash = name === '闪避';
+                    const isNative = name.startsWith('母语');
+                    if (isFlash) baseValue = Math.floor(dex / 2);
+                    else if (isNative) baseValue = edu;
+
+                    // 技能名称列
+                    let nameCell;
+                    if (customName) {
+                        // 可自定义名称：显示前缀+输入框
+                        const prefix = name; // 如 "格斗:" "科学:" "母语:"
+                        nameCell = `<td class="skill-name">${prefix}<input type="text" class="custom-name" placeholder="填写" style="width:50px;"></td>`;
+                    } else {
+                        nameCell = `<td class="skill-name">${name}</td>`;
+                    }
+
+                    // 基础值列
+                    let baseCell;
+                    if (customBase) {
+                        // 可自定义初始值
+                        baseCell = `<td><input type="number" class="base custom-base" value="${initial}" min="0" max="99"></td>`;
+                    } else if (isFlash || isNative) {
+                        // 闪避和母语的基础值由属性决定，显示为文本
+                        baseCell = `<td class="base">${baseValue}</td>`;
+                    } else {
+                        baseCell = `<td class="base">${initial}</td>`;
+                    }
+
+                    html += `<tr class="skill-row" data-skill="${name}" data-custom-name="${customName}" data-custom-base="${customBase}" id="${rowId}">
+                ${nameCell}
+                ${baseCell}
+                <td><input type="number" class="growth" value="0" min="0" max="99"></td>
+                <td><input type="number" class="job" value="0" min="0" max="99" ${isCM ? 'disabled' : ''}></td>
+                <td><input type="number" class="hobby" value="0" min="0" max="99" ${isCM ? 'disabled' : ''}></td>
+                <td class="total">${baseValue}</td>
+            </tr>`;
+                }
+                html += '</table>';
+                catDiv.innerHTML = html;
+                container.appendChild(catDiv);
+            }
+
+            // 绑定事件
+            document.querySelectorAll('.skill-table input').forEach(input => {
+                input.addEventListener('input', () => updateSkillTotal(input.closest('.skill-row')));
+            });
+        }
+
+        function getFormData() {
+            const name = document.getElementById('charName').value;
+            const skills = {};
+
+            document.querySelectorAll('.skill-row').forEach(row => {
+                let skillName = row.dataset.skill;
+                const total = parseInt(row.querySelector('.total').textContent) || 0;
+
+                // 检查是否有自定义名称
+                const customNameInput = row.querySelector('.custom-name');
+                if (customNameInput && customNameInput.value.trim()) {
+                    // 格式: "技能名:自定义部分"
+                    skillName = skillName + customNameInput.value.trim();
+                }
+
+                // 保存所有有值的技能，跳过未填写自定义名称的可自定义技能
+                const isCustomName = row.dataset.customName === 'true';
+                if (total > 0) {
+                    if (isCustomName && !customNameInput?.value.trim()) {
+                        // 跳过未填写名称的自定义技能
+                        return;
+                    }
+                    skills[skillName] = total;
+                }
+            });
+
             return {
-                name: name,
+                name,
                 attributes: {
-                    STR: parseInt(data.get('str_val')),
-                    CON: parseInt(data.get('con')),
-                    SIZ: parseInt(data.get('siz')),
-                    DEX: parseInt(data.get('dex')),
-                    APP: parseInt(data.get('app')),
-                    INT: parseInt(data.get('int_val')),
-                    POW: parseInt(data.get('pow_val')),
-                    EDU: parseInt(data.get('edu')),
-                    LUK: parseInt(data.get('luk'))
+                    STR: parseInt(document.getElementById('str').value) || 50,
+                    CON: parseInt(document.getElementById('con').value) || 50,
+                    SIZ: parseInt(document.getElementById('siz').value) || 50,
+                    DEX: parseInt(document.getElementById('dex').value) || 50,
+                    APP: parseInt(document.getElementById('app').value) || 50,
+                    INT: parseInt(document.getElementById('int').value) || 50,
+                    POW: parseInt(document.getElementById('pow').value) || 50,
+                    EDU: parseInt(document.getElementById('edu').value) || 50,
+                    LUK: parseInt(document.getElementById('luk').value) || 50
                 },
-                skills: skills,
-                hp: parseInt(data.get('hp')),
-                mp: parseInt(data.get('mp')),
-                san: parseInt(data.get('san'))
+                skills,
+                hp: parseInt(document.getElementById('hp').textContent),
+                mp: parseInt(document.getElementById('mp').textContent),
+                san: parseInt(document.getElementById('san').textContent)
             };
         }
-        
+
         document.getElementById('exportBtn').addEventListener('click', () => {
-            const charData = getFormData();
-            if (!charData.name) {
-                alert('请先填写角色名称');
-                return;
-            }
-            const json = JSON.stringify(charData);
-            const cmd = '.pc new ' + json;
-            document.getElementById('exportText').value = cmd;
+            const data = getFormData();
+            if (!data.name) { alert('请填写角色名称'); return; }
+            document.getElementById('exportText').value = '.pc new ' + JSON.stringify(data);
             document.getElementById('exportResult').style.display = 'block';
         });
-        
+
         document.getElementById('copyBtn').addEventListener('click', () => {
-            const text = document.getElementById('exportText');
-            text.select();
+            document.getElementById('exportText').select();
             document.execCommand('copy');
             document.getElementById('copyBtn').textContent = '✅ 已复制';
-            setTimeout(() => {
-                document.getElementById('copyBtn').textContent = '复制到剪贴板';
-            }, 2000);
+            setTimeout(() => document.getElementById('copyBtn').textContent = '复制', 2000);
         });
 
         document.getElementById('charForm').addEventListener('submit', async (e) => {
             e.preventDefault();
             const btn = document.getElementById('submitBtn');
-            btn.disabled = true;
-            btn.textContent = '创建中...';
-            
-            const formData = new FormData(e.target);
-            
+            btn.disabled = true; btn.textContent = '创建中...';
+
+            const charData = getFormData();
+            const formData = new FormData();
+            formData.append('token', '{{ token }}');
+            formData.append('name', charData.name);
+            formData.append('str_val', charData.attributes.STR);
+            formData.append('con', charData.attributes.CON);
+            formData.append('siz', charData.attributes.SIZ);
+            formData.append('dex', charData.attributes.DEX);
+            formData.append('app', charData.attributes.APP);
+            formData.append('int_val', charData.attributes.INT);
+            formData.append('pow_val', charData.attributes.POW);
+            formData.append('edu', charData.attributes.EDU);
+            formData.append('luk', charData.attributes.LUK);
+            formData.append('hp', charData.hp);
+            formData.append('mp', charData.mp);
+            formData.append('san', charData.san);
+            formData.append('skills', Object.entries(charData.skills).map(([k, v]) => `${k}:${v}`).join('\n'));
+
             try {
-                const resp = await fetch('/api/character/create', {
-                    method: 'POST',
-                    body: formData
-                });
+                const resp = await fetch('/api/character/create', { method: 'POST', body: formData });
                 const data = await resp.json();
-                
                 if (data.success) {
                     document.getElementById('charForm').style.display = 'none';
-                    document.getElementById('result').innerHTML = 
-                        '<div class="success"><h2>✅ ' + data.message + '</h2><p>返回 KOOK 使用 .pc show 查看角色卡</p></div>';
+                    document.getElementById('exportResult').style.display = 'none';
+                    document.getElementById('result').innerHTML = '<div class="success"><h2>✅ ' + data.message + '</h2><p>返回 KOOK 使用 .pc show 查看</p></div>';
                     document.getElementById('result').style.display = 'block';
                 } else {
-                    alert('创建失败: ' + (data.detail || data.message));
-                    btn.disabled = false;
-                    btn.textContent = '✨ 创建角色卡';
+                    alert('失败: ' + (data.detail || data.message));
+                    btn.disabled = false; btn.textContent = '✨ 创建角色卡';
                 }
             } catch (err) {
-                alert('请求失败: ' + err.message);
-                btn.disabled = false;
-                btn.textContent = '✨ 创建角色卡';
+                alert('错误: ' + err.message);
+                btn.disabled = false; btn.textContent = '✨ 创建角色卡';
             }
         });
+
+        loadSkills();
+        updateAttrTotal();
     </script>
 </body>
+
 </html>

@@ -276,6 +276,8 @@ class MessageHandler:
         token = self.web_app.generate_token(user_id)
         url = f"{settings.web_base_url}/create/{token}"
         
+        logger.info(f"生成角色卡创建链接: user={user_id}, token={token}")
+        
         msg = f"🎲 **你的专属角色卡创建链接**\n\n{url}\n\n⏰ 链接有效期 10 分钟，仅限本人使用"
         await self.client.send_direct_message(user_id, msg)
     
