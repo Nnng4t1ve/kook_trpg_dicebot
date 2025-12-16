@@ -1,5 +1,7 @@
 version: '3.8'
 
+# 仅部署 Bot，使用外部数据库
+
 services:
   bot:
     build: .
@@ -10,8 +12,8 @@ services:
     environment:
       - KOOK_TOKEN=${KOOK_TOKEN}
       - LOG_LEVEL=${LOG_LEVEL:-INFO}
-      - DB_HOST=mysql
-      - DB_PORT=3306
+      - DB_HOST=${DB_HOST:-host.docker.internal}
+      - DB_PORT=${DB_PORT:-3306}
       - DB_USER=${DB_USER:-root}
       - DB_PASSWORD=${DB_PASSWORD}
       - DB_NAME=${DB_NAME:-trpg_dicebot}
@@ -20,34 +22,5 @@ services:
       - WEB_BASE_URL=${WEB_BASE_URL}
     volumes:
       - ./logs:/app/logs
-    depends_on:
-      mysql:
-        condition: service_healthy
-    networks:
-      - bot-network
-
-  mysql:
-    image: mysql:8.0
-    container_name: coc-dice-mysql
-    restart: unless-stopped
-    environment:
-      - MYSQL_ROOT_PASSWORD=${DB_PASSWORD}
-      - MYSQL_DATABASE=${DB_NAME:-trpg_dicebot}
-      - MYSQL_CHARSET=utf8mb4
-      - MYSQL_COLLATION=utf8mb4_unicode_ci
-    volumes:
-      - mysql-data:/var/lib/mysql
-    healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-    networks:
-      - bot-network
-
-volumes:
-  mysql-data:
-
-networks:
-  bot-network:
-    driver: bridge
+    extra_hosts:
+      - "host.docker.internal:host-gateway"  # Linux 支持 host.docker.internal
