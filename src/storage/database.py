@@ -17,7 +17,11 @@ class Database:
         self._pool: Optional[aiomysql.Pool] = None
 
     async def connect(self):
-        """连接数据库"""
+        """连接数据库，如果数据库不存在则自动创建"""
+        # 先连接不指定数据库，创建数据库
+        await self._ensure_database_exists()
+        
+        # 再连接到指定数据库
         self._pool = await aiomysql.create_pool(
             host=self.host,
             port=self.port,
@@ -30,6 +34,25 @@ class Database:
             maxsize=10,
         )
         await self._init_tables()
+    
+    async def _ensure_database_exists(self):
+        """确保数据库存在，不存在则创建"""
+        conn = await aiomysql.connect(
+            host=self.host,
+            port=self.port,
+            user=self.user,
+            password=self.password,
+            charset="utf8mb4",
+            autocommit=True,
+        )
+        try:
+            async with conn.cursor() as cur:
+                await cur.execute(
+                    f"CREATE DATABASE IF NOT EXISTS `{self.database}` "
+                    f"CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci"
+                )
+        finally:
+            conn.close()
 
     async def close(self):
         """关闭连接池"""
