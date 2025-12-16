@@ -69,8 +69,8 @@ class Database:
             async with conn.cursor() as cur:
                 await cur.execute(
                     """INSERT INTO characters (user_id, name, data) 
-                       VALUES (%s, %s, %s)
-                       ON DUPLICATE KEY UPDATE data = VALUES(data)""",
+                       VALUES (%s, %s, %s) AS new_data
+                       ON DUPLICATE KEY UPDATE data = new_data.data""",
                     (char.user_id, char.name, char.to_json()),
                 )
 
@@ -129,8 +129,8 @@ class Database:
             async with conn.cursor() as cur:
                 await cur.execute(
                     """INSERT INTO user_settings (user_id, active_character) 
-                       VALUES (%s, %s)
-                       ON DUPLICATE KEY UPDATE active_character = VALUES(active_character)""",
+                       VALUES (%s, %s) AS new_data
+                       ON DUPLICATE KEY UPDATE active_character = new_data.active_character""",
                     (user_id, name),
                 )
 
@@ -166,10 +166,10 @@ class Database:
                 await cur.execute(
                     """INSERT INTO user_settings 
                        (user_id, rule_name, critical_threshold, fumble_threshold)
-                       VALUES (%s, %s, %s, %s)
+                       VALUES (%s, %s, %s, %s) AS new_data
                        ON DUPLICATE KEY UPDATE 
-                       rule_name = VALUES(rule_name),
-                       critical_threshold = VALUES(critical_threshold),
-                       fumble_threshold = VALUES(fumble_threshold)""",
+                       rule_name = new_data.rule_name,
+                       critical_threshold = new_data.critical_threshold,
+                       fumble_threshold = new_data.fumble_threshold""",
                     (user_id, rule, critical, fumble),
                 )
