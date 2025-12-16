@@ -86,7 +86,7 @@
             font-size: 0.8rem;
         }
 
-        .attr-item input {
+        .attr-item input[type="number"] {
             text-align: center;
             padding: 6px;
         }
@@ -95,6 +95,78 @@
             font-size: 0.65rem;
             color: #888;
             font-weight: normal;
+        }
+
+        .attr-item .attr-checkbox {
+            margin-right: 4px;
+            cursor: pointer;
+            width: 16px;
+            height: 16px;
+            accent-color: #4fc3f7;
+        }
+
+        .attr-item .attr-label-row {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 2px;
+        }
+
+        .points-display {
+            display: flex;
+            justify-content: space-around;
+            margin-top: 12px;
+            padding: 12px;
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 8px;
+            font-size: 0.9rem;
+        }
+
+        .points-box {
+            text-align: center;
+            padding: 8px 16px;
+            border-radius: 8px;
+            background: rgba(255, 255, 255, 0.1);
+        }
+
+        .points-box .label {
+            font-size: 0.75rem;
+            color: #aaa;
+            margin-bottom: 4px;
+        }
+
+        .points-box .value {
+            font-size: 1.3rem;
+            font-weight: bold;
+        }
+
+        .points-box .value.job-points {
+            color: #ff9800;
+        }
+
+        .points-box .value.hobby-points {
+            color: #4caf50;
+        }
+
+        .points-box .value.zero {
+            color: #f44336;
+            animation: pulse 1s infinite;
+        }
+
+        .points-box .value.negative {
+            color: #f44336;
+            font-weight: bold;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        .points-formula {
+            font-size: 0.7rem;
+            color: #888;
+            margin-top: 4px;
         }
 
         .btn-random {
@@ -202,29 +274,42 @@
             </div>
             <div class="card">
                 <h2>💪 属性值 <button type="button" class="btn-random" id="randomAllBtn">🎲 随机全部</button></h2>
+                <p class="hint" style="margin-bottom:8px;">勾选属性用于计算职业点数（最多2个）</p>
                 <div class="attr-grid">
-                    <div class="attr-item"><label>STR 力量 <span class="formula">3D6×5</span></label><input type="number"
+                    <div class="attr-item"><label><span class="attr-label-row"><input type="checkbox" class="attr-checkbox" data-attr="str">STR 力量</span> <span class="formula">3D6×5</span></label><input type="number"
                             id="str" value="50" min="1" max="99"></div>
-                    <div class="attr-item"><label>CON 体质 <span class="formula">3D6×5</span></label><input type="number"
+                    <div class="attr-item"><label><span class="attr-label-row"><input type="checkbox" class="attr-checkbox" data-attr="con">CON 体质</span> <span class="formula">3D6×5</span></label><input type="number"
                             id="con" value="50" min="1" max="99"></div>
-                    <div class="attr-item"><label>SIZ 体型 <span class="formula">(2D6+6)×5</span></label><input
+                    <div class="attr-item"><label><span class="attr-label-row"><input type="checkbox" class="attr-checkbox" data-attr="siz">SIZ 体型</span> <span class="formula">(2D6+6)×5</span></label><input
                             type="number" id="siz" value="50" min="1" max="99"></div>
-                    <div class="attr-item"><label>DEX 敏捷 <span class="formula">3D6×5</span></label><input type="number"
+                    <div class="attr-item"><label><span class="attr-label-row"><input type="checkbox" class="attr-checkbox" data-attr="dex">DEX 敏捷</span> <span class="formula">3D6×5</span></label><input type="number"
                             id="dex" value="50" min="1" max="99"></div>
-                    <div class="attr-item"><label>APP 外貌 <span class="formula">3D6×5</span></label><input type="number"
+                    <div class="attr-item"><label><span class="attr-label-row"><input type="checkbox" class="attr-checkbox" data-attr="app">APP 外貌</span> <span class="formula">3D6×5</span></label><input type="number"
                             id="app" value="50" min="1" max="99"></div>
-                    <div class="attr-item"><label>INT 智力 <span class="formula">(2D6+6)×5</span></label><input
+                    <div class="attr-item"><label><span class="attr-label-row"><input type="checkbox" class="attr-checkbox" data-attr="int">INT 智力</span> <span class="formula">(2D6+6)×5</span></label><input
                             type="number" id="int" value="50" min="1" max="99"></div>
-                    <div class="attr-item"><label>POW 意志 <span class="formula">3D6×5</span></label><input type="number"
+                    <div class="attr-item"><label><span class="attr-label-row"><input type="checkbox" class="attr-checkbox" data-attr="pow">POW 意志</span> <span class="formula">3D6×5</span></label><input type="number"
                             id="pow" value="50" min="1" max="99"></div>
-                    <div class="attr-item"><label>EDU 教育 <span class="formula">(2D6+6)×5</span></label><input
+                    <div class="attr-item"><label><span class="attr-label-row"><input type="checkbox" class="attr-checkbox" data-attr="edu">EDU 教育</span> <span class="formula">(2D6+6)×5</span></label><input
                             type="number" id="edu" value="50" min="1" max="99"></div>
-                    <div class="attr-item"><label>LUK 幸运 <span class="formula">3D6×5</span></label><input type="number"
+                    <div class="attr-item"><label><span class="attr-label-row"><span style="width:16px;display:inline-block;"></span>LUK 幸运</span> <span class="formula">3D6×5</span></label><input type="number"
                             id="luk" value="50" min="1" max="99"></div>
                 </div>
                 <div class="attr-total">
                     <span>总计(不含幸运): <strong id="totalNoLuk">400</strong></span>
                     <span>总计(含幸运): <strong id="totalWithLuk">450</strong></span>
+                </div>
+                <div class="points-display">
+                    <div class="points-box">
+                        <div class="label">职业点数</div>
+                        <div class="value job-points" id="jobPointsRemain">0</div>
+                        <div class="points-formula" id="jobFormula">未选择属性</div>
+                    </div>
+                    <div class="points-box">
+                        <div class="label">兴趣点数</div>
+                        <div class="value hobby-points" id="hobbyPointsRemain">100</div>
+                        <div class="points-formula">INT × 2</div>
+                    </div>
                 </div>
             </div>
             <div class="card">
@@ -257,7 +342,7 @@
                 </div>
             </div>
             <div class="card">
-                <h2>🎯 技能 <span class="hint">(基础+成长+职业+兴趣=成功率)</span></h2>
+                <h2>🎯 技能 <span class="hint">(基础+职业+兴趣=成功率)</span></h2>
                 <div id="skillsContainer">
                     <p class="hint">加载中...</p>
                 </div>
@@ -329,6 +414,14 @@
             color: #ffc107;
         }
 
+        .skill-table .job {
+            background: rgba(255, 152, 0, 0.15);
+        }
+
+        .skill-table .hobby {
+            background: rgba(76, 175, 80, 0.15);
+        }
+
         .skill-category {
             margin-bottom: 15px;
         }
@@ -340,6 +433,32 @@
             padding: 5px;
             background: rgba(0, 0, 0, 0.2);
             border-radius: 5px;
+        }
+
+        .toast {
+            position: fixed;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            padding: 12px 24px;
+            border-radius: 8px;
+            color: #fff;
+            font-weight: bold;
+            z-index: 1000;
+            animation: slideDown 0.3s ease;
+        }
+
+        .toast.warning {
+            background: linear-gradient(135deg, #f44336, #e91e63);
+        }
+
+        .toast.success {
+            background: linear-gradient(135deg, #4caf50, #8bc34a);
+        }
+
+        @keyframes slideDown {
+            from { top: -50px; opacity: 0; }
+            to { top: 20px; opacity: 1; }
         }
     </style>
     <script>
@@ -356,6 +475,138 @@
             return (rollD6() + rollD6() + 6) * 5;
         }
 
+        // 点数系统
+        let totalJobPoints = 0;
+        let totalHobbyPoints = 100;
+        let usedJobPoints = 0;
+        let usedHobbyPoints = 0;
+
+        // Toast 提示
+        function showToast(message, type = 'warning') {
+            const existing = document.querySelector('.toast');
+            if (existing) existing.remove();
+            
+            const toast = document.createElement('div');
+            toast.className = `toast ${type}`;
+            toast.textContent = message;
+            document.body.appendChild(toast);
+            
+            setTimeout(() => toast.remove(), 3000);
+        }
+
+        // 更新点数显示
+        function updatePointsDisplay() {
+            const jobRemain = totalJobPoints - usedJobPoints;
+            const hobbyRemain = totalHobbyPoints - usedHobbyPoints;
+            
+            const jobEl = document.getElementById('jobPointsRemain');
+            const hobbyEl = document.getElementById('hobbyPointsRemain');
+            const submitBtn = document.getElementById('submitBtn');
+            
+            jobEl.textContent = jobRemain;
+            hobbyEl.textContent = hobbyRemain;
+            
+            // 样式更新
+            jobEl.classList.remove('zero', 'negative');
+            hobbyEl.classList.remove('zero', 'negative');
+            
+            if (jobRemain === 0) {
+                jobEl.classList.add('zero');
+                showToast('职业点数已用完！', 'success');
+            } else if (jobRemain < 0) {
+                jobEl.classList.add('negative');
+            }
+            
+            if (hobbyRemain === 0) {
+                hobbyEl.classList.add('zero');
+                showToast('兴趣点数已用完！', 'success');
+            } else if (hobbyRemain < 0) {
+                hobbyEl.classList.add('negative');
+            }
+            
+            // 检查是否选择了属性
+            const hasSelectedAttr = document.querySelectorAll('.attr-checkbox:checked').length > 0;
+            
+            // 如果选择了属性且点数为负，禁用创建按钮；未选择属性则不限制职业点数
+            const jobOverspent = hasSelectedAttr && jobRemain < 0;
+            const hobbyOverspent = hobbyRemain < 0;
+            
+            if (jobOverspent || hobbyOverspent) {
+                submitBtn.disabled = true;
+                submitBtn.textContent = '⚠️ 点数超支，无法创建';
+            } else {
+                submitBtn.disabled = false;
+                submitBtn.textContent = '✨ 创建角色卡';
+            }
+        }
+
+        // 计算职业点数
+        function calculateJobPoints() {
+            const checked = document.querySelectorAll('.attr-checkbox:checked');
+            const checkedAttrs = Array.from(checked).map(cb => cb.dataset.attr);
+            
+            let formula = '';
+            if (checkedAttrs.length === 0) {
+                totalJobPoints = 0;
+                formula = '未选择属性';
+            } else if (checkedAttrs.length === 1) {
+                const val = parseInt(document.getElementById(checkedAttrs[0]).value) || 0;
+                totalJobPoints = val * 4;
+                formula = `${checkedAttrs[0].toUpperCase()} × 4 = ${totalJobPoints}`;
+            } else {
+                const val1 = parseInt(document.getElementById(checkedAttrs[0]).value) || 0;
+                const val2 = parseInt(document.getElementById(checkedAttrs[1]).value) || 0;
+                totalJobPoints = val1 * 2 + val2 * 2;
+                formula = `${checkedAttrs[0].toUpperCase()}×2 + ${checkedAttrs[1].toUpperCase()}×2 = ${totalJobPoints}`;
+            }
+            
+            document.getElementById('jobFormula').textContent = formula;
+            updatePointsDisplay();
+        }
+
+        // 计算兴趣点数
+        function calculateHobbyPoints() {
+            const int = parseInt(document.getElementById('int').value) || 0;
+            totalHobbyPoints = int * 2;
+            updatePointsDisplay();
+        }
+
+        // 计算已使用点数
+        function calculateUsedPoints() {
+            usedJobPoints = 0;
+            usedHobbyPoints = 0;
+            
+            document.querySelectorAll('.skill-row').forEach(row => {
+                const jobInput = row.querySelector('.job');
+                const hobbyInput = row.querySelector('.hobby');
+                
+                if (jobInput && !jobInput.disabled) {
+                    usedJobPoints += parseInt(jobInput.value) || 0;
+                }
+                if (hobbyInput && !hobbyInput.disabled) {
+                    usedHobbyPoints += parseInt(hobbyInput.value) || 0;
+                }
+            });
+            
+            updatePointsDisplay();
+        }
+
+        // 复选框限制最多2个
+        function setupCheckboxLimit() {
+            const checkboxes = document.querySelectorAll('.attr-checkbox');
+            checkboxes.forEach(cb => {
+                cb.addEventListener('change', () => {
+                    const checked = document.querySelectorAll('.attr-checkbox:checked');
+                    if (checked.length > 2) {
+                        cb.checked = false;
+                        showToast('最多只能选择2个属性！');
+                        return;
+                    }
+                    calculateJobPoints();
+                });
+            });
+        }
+
         // 随机全部属性
         function randomAllAttributes() {
             document.getElementById('str').value = roll3D6x5();
@@ -369,6 +620,8 @@
             document.getElementById('luk').value = roll3D6x5();
             updateAttrTotal();
             updateDerived();
+            calculateJobPoints();
+            calculateHobbyPoints();
         }
 
         // 更新属性总值
@@ -392,6 +645,9 @@
 
         // 绑定随机按钮
         document.getElementById('randomAllBtn').addEventListener('click', randomAllAttributes);
+        
+        // 初始化复选框
+        setupCheckboxLimit();
 
         function calcBuildDB(strSiz) {
             if (strSiz <= 64) return { build: -2, db: "-2" };
@@ -441,10 +697,9 @@
             const base = baseEl.tagName === 'INPUT'
                 ? (parseInt(baseEl.value) || 0)
                 : (parseInt(baseEl.textContent) || 0);
-            const growth = parseInt(row.querySelector('.growth').value) || 0;
             const job = parseInt(row.querySelector('.job').value) || 0;
             const hobby = parseInt(row.querySelector('.hobby').value) || 0;
-            const total = base + growth + job + hobby;
+            const total = base + job + hobby;
             row.querySelector('.total').textContent = total;
         }
 
@@ -456,6 +711,8 @@
             document.getElementById(id).addEventListener('input', () => {
                 updateAttrTotal();
                 updateDerived();
+                calculateJobPoints();
+                if (id === 'int') calculateHobbyPoints();
             });
         });
 
@@ -486,7 +743,7 @@
                 catDiv.className = 'skill-category';
 
                 let html = `<h3>${category}</h3><table class="skill-table">
-            <tr><th>技能</th><th>基础</th><th>成长</th><th>职业</th><th>兴趣</th><th>成功率</th></tr>`;
+            <tr><th>技能</th><th>基础</th><th>职业</th><th>兴趣</th><th>成功率</th></tr>`;
 
                 for (const skill of skills) {
                     const { name, initial, customName, customBase } = skill;
@@ -526,7 +783,6 @@
                     html += `<tr class="skill-row" data-skill="${name}" data-custom-name="${customName}" data-custom-base="${customBase}" id="${rowId}">
                 ${nameCell}
                 ${baseCell}
-                <td><input type="number" class="growth" value="0" min="0" max="99"></td>
                 <td><input type="number" class="job" value="0" min="0" max="99" ${isCM ? 'disabled' : ''}></td>
                 <td><input type="number" class="hobby" value="0" min="0" max="99" ${isCM ? 'disabled' : ''}></td>
                 <td class="total">${baseValue}</td>
@@ -539,8 +795,14 @@
 
             // 绑定事件
             document.querySelectorAll('.skill-table input').forEach(input => {
-                input.addEventListener('input', () => updateSkillTotal(input.closest('.skill-row')));
+                input.addEventListener('input', () => {
+                    updateSkillTotal(input.closest('.skill-row'));
+                    calculateUsedPoints();
+                });
             });
+            
+            // 初始化点数计算
+            calculateHobbyPoints();
         }
 
         function getFormData() {
