@@ -126,6 +126,39 @@ WEB_BASE_URL=http://your-server-ip:8080
 python -m src.main
 ```
 
+## Docker 部署
+
+### 使用 Docker Compose (推荐)
+
+```bash
+# 1. 配置环境变量
+cp .env.example .env
+# 编辑 .env 填写 KOOK_TOKEN, DB_PASSWORD, WEB_BASE_URL
+
+# 2. 启动服务
+docker-compose up -d
+
+# 3. 查看日志
+docker-compose logs -f bot
+```
+
+### 单独构建镜像
+
+```bash
+# 构建
+docker build -t coc-dice-bot .
+
+# 运行 (需要外部 MySQL)
+docker run -d \
+  --name coc-dice-bot \
+  -p 11021:11021 \
+  -e KOOK_TOKEN=your_token \
+  -e DB_HOST=your_mysql_host \
+  -e DB_PASSWORD=your_password \
+  -e WEB_BASE_URL=http://your-ip:11021 \
+  coc-dice-bot
+```
+
 ## 技术架构
 
 - **语言**: Python 3.10+
