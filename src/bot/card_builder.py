@@ -251,6 +251,121 @@ class CardBuilder:
         return json.dumps([card])
 
     @staticmethod
+    def build_san_check_card(
+        check_id: str,
+        success_expr: str,
+        fail_expr: str,
+        description: str = "",
+        kp_name: str = ""
+    ) -> str:
+        """构建 SAN Check 卡片消息"""
+        card = {
+            "type": "card",
+            "theme": "danger",
+            "size": "lg",
+            "modules": [
+                {
+                    "type": "header",
+                    "text": {
+                        "type": "plain-text",
+                        "content": "🧠 SAN Check"
+                    }
+                },
+                {
+                    "type": "divider"
+                },
+                {
+                    "type": "section",
+                    "text": {
+                        "type": "kmarkdown",
+                        "content": f"成功损失: **{success_expr}** | 失败损失: **{fail_expr}**\n{description or '点击下方按钮进行 SAN Check'}"
+                    }
+                },
+                {
+                    "type": "action-group",
+                    "elements": [
+                        {
+                            "type": "button",
+                            "theme": "danger",
+                            "value": json.dumps({
+                                "action": "san_check",
+                                "check_id": check_id,
+                                "success_expr": success_expr,
+                                "fail_expr": fail_expr
+                            }),
+                            "click": "return-val",
+                            "text": {
+                                "type": "plain-text",
+                                "content": "🎲 进行 SAN Check"
+                            }
+                        }
+                    ]
+                }
+            ]
+        }
+        
+        if kp_name:
+            card["modules"].insert(2, {
+                "type": "context",
+                "elements": [
+                    {
+                        "type": "kmarkdown",
+                        "content": f"发起者: {kp_name}"
+                    }
+                ]
+            })
+        
+        return json.dumps([card])
+
+    @staticmethod
+    def build_san_check_result_card(
+        user_name: str,
+        char_name: str,
+        roll: int,
+        san: int,
+        is_success: bool,
+        loss_expr: str,
+        loss: int,
+        new_san: int,
+        madness_info: list = None
+    ) -> str:
+        """构建 SAN Check 结果卡片"""
+        theme = "warning" if is_success else "danger"
+        result_text = "成功" if is_success else "失败"
+        
+        content = f"**{char_name}** 的 SAN Check\nD100 = **{roll}** / {san}  【{result_text}】\n损失: {loss_expr} = **{loss}**\nSAN: {san} → **{new_san}**"
+        
+        modules = [
+            {
+                "type": "section",
+                "text": {
+                    "type": "kmarkdown",
+                    "content": content
+                }
+            }
+        ]
+        
+        # 添加疯狂信息
+        if madness_info:
+            modules.append({"type": "divider"})
+            modules.append({
+                "type": "section",
+                "text": {
+                    "type": "kmarkdown",
+                    "content": "\n".join(madness_info)
+                }
+            })
+        
+        card = {
+            "type": "card",
+            "theme": theme,
+            "size": "lg",
+            "modules": modules
+        }
+        
+        return json.dumps([card])
+
+    @staticmethod
     def build_opposed_check_card(
         check_id: str,
         initiator_name: str,

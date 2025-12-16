@@ -94,6 +94,10 @@ class MessageHandler:
             await self._handle_check_button(
                 value, user_id, target_id, user_name
             )
+        elif action == "san_check":
+            await self._handle_san_check_button(
+                value, user_id, target_id, user_name
+            )
         elif action == "create_character":
             await self._handle_create_character_button(user_id)
         elif action == "grow_character":
@@ -101,6 +105,108 @@ class MessageHandler:
         elif action == "opposed_check":
             await self._handle_opposed_check_button(value, user_id, target_id, user_name)
     
+    async def _handle_san_check_button(
+        self, value: dict, user_id: str, target_id: str, user_name: str
+    ):
+        """处理 SAN Check 按钮点击"""
+        from ..data.madness import roll_temporary_madness
+        
+        check_id = value.get("check_id")
+        success_expr = value.get("success_expr")
+        fail_expr = value.get("fail_expr")
+        
+        check = self.check_manager.get_check(check_id)
+        if not check:
+            await self.client.send_message(
+                target_id, f"(met){user_id}(met) 该检定已过期", msg_type=9
+            )
+            return
+        
+        # 检查是否已经检定过
+        if self.check_manager.has_completed(check_id, user_id):
+            await self.client.send_message(
+                target_id, f"(met){user_id}(met) 你已经完成过这个 SAN Check 了", msg_type=9
+            )
+            return
+        
+        # 获取角色卡
+        char = await self.char_manager.get_active(user_id)
+        if not char:
+            await self.client.send_message(
+                target_id, 
+                f"(met){user_id}(met) 请先导入角色卡: `.pc new {{JSON}}`", 
+                msg_type=9
+            )
+            return
+        
+        current_san = char.san
+        if current_san <= 0:
+            await self.client.send_message(
+                target_id, 
+                f"(met){user_id}(met) **{char.name}** 的 SAN 值已经为 0，无法进行 SAN Check", 
+                msg_type=9
+            )
+            return
+        
+        # 进行 SAN 检定 (d100 <= san 为成功)
+        roll = DiceRoller.roll_d100()
+        is_success = roll <= current_san
+        
+        # 计算损失
+        loss_expr = success_expr if is_success else fail_expr
+        loss = self._calc_san_loss(loss_expr)
+        
+        if loss is None:
+            await self.client.send_message(
+                target_id, f"(met){user_id}(met) 无法解析损失表达式: {loss_expr}", msg_type=9
+            )
+            return
+        
+        # 更新 SAN 值
+        new_san = max(0, current_san - loss)
+        char.san = new_san
+        await self.char_manager.add(char)  # 保存更新
+        
+        # 标记完成
+        self.check_manager.mark_completed(check_id, user_id)
+        
+        # 构建结果
+        result_text = "成功" if is_success else "失败"
+        lines = [
+            f"**{char.name}** 的 SAN Check",
+            f"D100={roll}/{current_san} [{result_text}]",
+            f"损失: {loss_expr} = {loss}",
+            f"SAN: {current_san} → **{new_san}**",
+        ]
+        
+        # 检查是否触发临时疯狂 (单次损失 >= 5)
+        if loss >= 5:
+            madness = roll_temporary_madness()
+            lines.append("")
+            lines.append(f"⚠️ **触发临时疯狂！** (单次损失≥5)")
+            lines.append(f"🎲 症状骰点: 1D10={madness['roll']}")
+            lines.append(f"**{madness['name']}** - 持续 {madness['duration']}")
+            lines.append(f"_{madness['description']}_")
+        
+        # 检查是否陷入永久疯狂 (SAN 归零)
+        if new_san == 0:
+            lines.append("")
+            lines.append("💀 **SAN 值归零，陷入永久疯狂！**")
+        
+        # 发送结果卡片
+        card = CardBuilder.build_san_check_result_card(
+            user_name=user_name,
+            char_name=char.name,
+            roll=roll,
+            san=current_san,
+            is_success=is_success,
+            loss_expr=loss_expr,
+            loss=loss,
+            new_san=new_san,
+            madness_info=lines[4:] if loss >= 5 or new_san == 0 else None
+        )
+        await self.client.send_message(target_id, card, msg_type=10)
+
     async def _handle_check_button(
         self, value: dict, user_id: str, target_id: str, user_name: str
     ):
@@ -758,15 +864,42 @@ class MessageHandler:
     async def _cmd_kp_check(
         self, args: str, user_id: str, channel_id: str, user_name: str
     ) -> Tuple[str, bool]:
-        """KP 发起检定: .check 侦查 [描述]"""
+        """KP 发起检定: .check 侦查 [描述] 或 .check sc1d3/1d10 [描述]"""
+        import re
+        
         parts = args.split(maxsplit=1)
         if not parts:
-            return ("格式: `.check <技能名> [描述]`\n示例: `.check 侦查 仔细搜索房间`", False)
+            return ("格式: `.check <技能名> [描述]`\n示例: `.check 侦查 仔细搜索房间`\n`.check sc0/1d6` - SAN Check", False)
         
         skill_name = parts[0]
         description = parts[1] if len(parts) > 1 else ""
         
-        # 创建检定
+        # 检测 SAN check 格式: sc0/1d6, sc1d3/1d10 等
+        san_match = re.match(r"^sc(.+)/(.+)$", skill_name, re.IGNORECASE)
+        if san_match:
+            success_expr = san_match.group(1).strip()
+            fail_expr = san_match.group(2).strip()
+            
+            # 创建 SAN check
+            check = self.check_manager.create_check(
+                skill_name=f"sc:{success_expr}/{fail_expr}",  # 特殊格式标记
+                channel_id=channel_id,
+                kp_id=user_id
+            )
+            
+            # 构建 SAN check 卡片
+            card = CardBuilder.build_san_check_card(
+                check_id=check.check_id,
+                success_expr=success_expr,
+                fail_expr=fail_expr,
+                description=description,
+                kp_name=user_name
+            )
+            
+            logger.info(f"KP {user_id} 发起 SAN Check: {success_expr}/{fail_expr}, check_id={check.check_id}")
+            return (card, True)
+        
+        # 普通技能检定
         check = self.check_manager.create_check(
             skill_name=skill_name,
             channel_id=channel_id,
@@ -1033,6 +1166,7 @@ class MessageHandler:
 
 **KP 命令**
 `.check <技能名> [描述]` - 发起检定 (玩家点击按钮骰点)
+`.check sc<成功>/<失败>` - 发起 SAN Check (如 .check sc0/1d6)
 `.ad @用户 <技能>` - 对抗检定 (如 .ad @张三 力量)
 `.ad @用户 <我的技能> <对方技能>` - 不同技能对抗 (如 .ad @张三 斗殴 闪避)
 
