@@ -431,6 +431,8 @@ class MessageHandler:
             return (await self._pc_new(sub_args, user_id), False)
         elif sub_cmd == "create":
             return await self._pc_create_link(user_id)  # 返回卡片
+        elif sub_cmd == "grow":
+            return (await self._pc_grow(sub_args, user_id), False)
         elif sub_cmd == "list":
             return (await self._pc_list(user_id), False)
         elif sub_cmd == "switch":
@@ -440,13 +442,61 @@ class MessageHandler:
         elif sub_cmd == "del":
             return (await self._pc_delete(sub_args, user_id), False)
         else:
-            return ("未知子命令。可用: new, create, list, switch, show, del", False)
+            return ("未知子命令。可用: new, create, grow, list, switch, show, del", False)
     
     async def _pc_create_link(self, user_id: str) -> Tuple[str, bool]:
         """发送创建角色卡的交互卡片"""
         card = CardBuilder.build_create_character_card()
         return (card, True)
-    
+
+    async def _pc_grow(self, args: str, user_id: str) -> str:
+        """角色卡成长: .pc grow <角色名> <技能1> <技能2> ..."""
+        if not self.web_app:
+            return "Web 服务未启用"
+
+        parts = args.split()
+        if len(parts) < 2:
+            return "格式: .pc grow <角色名> <技能1> <技能2> ...\n示例: .pc grow 张三 侦查 聆听 图书馆"
+
+        char_name = parts[0]
+        skill_names = parts[1:]
+
+        # 检查角色是否存在
+        char = await self.char_manager.get(user_id, char_name)
+        if not char:
+            return f"未找到角色: {char_name}"
+
+        # 验证技能是否存在于角色卡中
+        valid_skills = []
+        invalid_skills = []
+        for skill in skill_names:
+            if skill in char.skills:
+                valid_skills.append(skill)
+            else:
+                # 尝试别名解析
+                from ..dice.skill_alias import skill_resolver
+                resolved = skill_resolver.resolve(skill)
+                if resolved in char.skills:
+                    valid_skills.append(resolved)
+                else:
+                    invalid_skills.append(skill)
+
+        if not valid_skills:
+            return f"角色 {char_name} 没有这些技能: {', '.join(skill_names)}"
+
+        # 生成成长链接
+        from ..config import settings
+        token = self.web_app.generate_grow_token(user_id, char_name, valid_skills)
+        url = f"{settings.web_base_url}/grow/{token}"
+
+        msg_lines = [f"📈 **{char_name}** 的技能成长链接", "", url, ""]
+        msg_lines.append(f"可成长技能: {', '.join(valid_skills)}")
+        if invalid_skills:
+            msg_lines.append(f"⚠️ 未找到: {', '.join(invalid_skills)}")
+        msg_lines.append("\n⏰ 链接有效期 10 分钟")
+
+        return "\n".join(msg_lines)
+
     async def _handle_create_character_button(self, user_id: str):
         """处理创建角色卡按钮点击 - 私聊发送链接"""
         if not self.web_app:
@@ -699,6 +749,7 @@ class MessageHandler:
 **角色卡命令**
 `.pc create` - 获取在线创建链接
 `.pc new <JSON>` - 导入角色卡
+`.pc grow <角色> <技能...>` - 技能成长 (如 .pc grow 张三 侦查 聆听)
 `.pc list` - 列出角色卡
 `.pc switch <名称>` - 切换角色卡
 `.pc show` - 显示当前角色

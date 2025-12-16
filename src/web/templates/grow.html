@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>角色卡成长 - {{ char_name }}</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            min-height: 100vh;
+            padding: 15px;
+            color: #fff;
+        }
+        .container { max-width: 600px; margin: 0 auto; }
+        h1 { text-align: center; margin-bottom: 10px; font-size: 1.5rem; }
+        .subtitle { text-align: center; color: #81d4fa; margin-bottom: 20px; font-size: 0.9rem; }
+        .card {
+            background: rgba(255,255,255,0.1);
+            border-radius: 12px;
+            padding: 15px;
+            margin-bottom: 15px;
+        }
+        .card h2 { margin-bottom: 12px; color: #4fc3f7; font-size: 1rem; }
+        .skill-item {
+            display: flex;
+            align-items: center;
+            padding: 10px;
+            background: rgba(0,0,0,0.2);
+            border-radius: 8px;
+            margin-bottom: 8px;
+        }
+        .skill-item.hidden { display: none; }
+        .skill-name { flex: 1; font-size: 0.95rem; }
+        .skill-value { 
+            width: 50px; 
+            text-align: center; 
+            color: #4fc3f7; 
+            font-weight: bold;
+            font-size: 1.1rem;
+        }
+        .skill-new {
+            width: 60px;
+            text-align: center;
+            color: #4caf50;
+            font-weight: bold;
+            font-size: 1.1rem;
+        }
+        .btn-grow {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 6px;
+            background: linear-gradient(135deg, #ff9800, #f57c00);
+            color: #fff;
+            font-size: 0.85rem;
+            cursor: pointer;
+            margin-left: 10px;
+        }
+        .btn-grow:hover { opacity: 0.9; }
+        .btn-grow:disabled { opacity: 0.5; cursor: not-allowed; }
+        .btn-grow.done { background: linear-gradient(135deg, #4caf50, #388e3c); }
+        .btn-grow.failed { background: linear-gradient(135deg, #f44336, #d32f2f); }
+        .result {
+            font-size: 0.8rem;
+            margin-top: 5px;
+            padding: 5px;
+            border-radius: 4px;
+        }
+        .result.success { background: rgba(76,175,80,0.2); color: #81c784; }
+        .result.fail { background: rgba(244,67,54,0.2); color: #e57373; }
+        .hint { font-size: 0.75rem; color: #888; text-align: center; margin-top: 10px; }
+        .arrow { color: #888; margin: 0 5px; }
+        .summary {
+            background: rgba(76,175,80,0.15);
+            border: 1px solid #4caf50;
+            border-radius: 8px;
+            padding: 15px;
+            margin-top: 15px;
+            display: none;
+        }
+        .summary h3 { color: #4caf50; margin-bottom: 10px; }
+        .summary-item { margin: 5px 0; font-size: 0.9rem; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>📈 角色卡成长</h1>
+        <p class="subtitle">{{ char_name }}</p>
+        
+        <div class="card">
+            <h2>🎯 可成长技能</h2>
+            <div id="skillsContainer">
+                <p class="hint">加载中...</p>
+            </div>
+        </div>
+        
+        <div class="card" id="otherSkillsCard" style="display:none;">
+            <h2>📋 其他技能 (不可成长)</h2>
+            <div id="otherSkillsContainer"></div>
+        </div>
+        
+        <div class="summary" id="summary">
+            <h3>✅ 成长完成</h3>
+            <div id="summaryContent"></div>
+        </div>
+        
+        <p class="hint">点击"成长"按钮进行技能成长检定<br>D100 > 当前技能值 = 成功，技能 +1D10</p>
+    </div>
+
+    <script>
+        const token = "{{ token }}";
+        const growableSkills = {{ growable_skills | tojson }};
+        let characterData = null;
+        let growthResults = [];
+
+        async function loadCharacter() {
+            try {
+                const resp = await fetch(`/api/grow/${token}/character`);
+                if (!resp.ok) throw new Error('加载失败');
+                const data = await resp.json();
+                characterData = data.character;
+                renderSkills();
+            } catch (e) {
+                document.getElementById('skillsContainer').innerHTML = 
+                    '<p style="color:red;">加载角色数据失败</p>';
+            }
+        }
+
+        function renderSkills() {
+            const container = document.getElementById('skillsContainer');
+            const otherContainer = document.getElementById('otherSkillsContainer');
+            container.innerHTML = '';
+            otherContainer.innerHTML = '';
+            
+            let hasGrowable = false;
+            let hasOther = false;
+
+            // 遍历角色的所有技能
+            for (const [skillName, skillValue] of Object.entries(characterData.skills)) {
+                const isGrowable = growableSkills.includes(skillName);
+                
+                const div = document.createElement('div');
+                div.className = 'skill-item';
+                div.id = `skill-${skillName}`;
+                
+                if (isGrowable) {
+                    hasGrowable = true;
+                    div.innerHTML = `
+                        <span class="skill-name">${skillName}</span>
+                        <span class="skill-value" id="value-${skillName}">${skillValue}</span>
+                        <span class="arrow">→</span>
+                        <span class="skill-new" id="new-${skillName}">-</span>
+                        <button class="btn-grow" onclick="doGrow('${skillName}')">成长</button>
+                    `;
+                    container.appendChild(div);
+                } else {
+                    hasOther = true;
+                    div.innerHTML = `
+                        <span class="skill-name">${skillName}</span>
+                        <span class="skill-value">${skillValue}</span>
+                    `;
+                    otherContainer.appendChild(div);
+                }
+            }
+
+            if (!hasGrowable) {
+                container.innerHTML = '<p class="hint">没有可成长的技能</p>';
+            }
+            
+            if (hasOther) {
+                document.getElementById('otherSkillsCard').style.display = 'block';
+            }
+        }
+
+        async function doGrow(skillName) {
+            const btn = event.target;
+            btn.disabled = true;
+            btn.textContent = '检定中...';
+
+            try {
+                const resp = await fetch(`/api/grow/${token}/roll`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ skill_name: skillName })
+                });
+                
+                const data = await resp.json();
+                
+                if (!resp.ok) {
+                    alert(data.detail || '操作失败');
+                    btn.disabled = false;
+                    btn.textContent = '成长';
+                    return;
+                }
+
+                // 更新显示
+                const newValueEl = document.getElementById(`new-${skillName}`);
+                const valueEl = document.getElementById(`value-${skillName}`);
+                
+                if (data.success) {
+                    btn.className = 'btn-grow done';
+                    btn.textContent = '✓ 成功';
+                    newValueEl.textContent = data.new_value;
+                    newValueEl.style.color = '#4caf50';
+                    
+                    // 添加结果说明
+                    const resultDiv = document.createElement('div');
+                    resultDiv.className = 'result success';
+                    resultDiv.textContent = `D100=${data.roll} > ${data.old_value} ✓ 成长+${data.increase}`;
+                    document.getElementById(`skill-${skillName}`).appendChild(resultDiv);
+                    
+                    growthResults.push({
+                        skill: skillName,
+                        success: true,
+                        old: data.old_value,
+                        new: data.new_value,
+                        increase: data.increase
+                    });
+                } else {
+                    btn.className = 'btn-grow failed';
+                    btn.textContent = '✗ 失败';
+                    newValueEl.textContent = data.old_value;
+                    newValueEl.style.color = '#e57373';
+                    
+                    const resultDiv = document.createElement('div');
+                    resultDiv.className = 'result fail';
+                    resultDiv.textContent = `D100=${data.roll} ≤ ${data.old_value} ✗ 未成长`;
+                    document.getElementById(`skill-${skillName}`).appendChild(resultDiv);
+                    
+                    growthResults.push({
+                        skill: skillName,
+                        success: false,
+                        old: data.old_value
+                    });
+                }
+
+                // 更新本地数据
+                characterData.skills[skillName] = data.new_value;
+                
+                // 检查是否全部完成
+                checkAllDone();
+                
+            } catch (e) {
+                alert('网络错误: ' + e.message);
+                btn.disabled = false;
+                btn.textContent = '成长';
+            }
+        }
+
+        function checkAllDone() {
+            const buttons = document.querySelectorAll('.btn-grow:not(:disabled)');
+            if (buttons.length === 0 && growthResults.length > 0) {
+                showSummary();
+            }
+        }
+
+        function showSummary() {
+            const summary = document.getElementById('summary');
+            const content = document.getElementById('summaryContent');
+            
+            let html = '';
+            for (const r of growthResults) {
+                if (r.success) {
+                    html += `<div class="summary-item">✅ ${r.skill}: ${r.old} → ${r.new} (+${r.increase})</div>`;
+                } else {
+                    html += `<div class="summary-item">❌ ${r.skill}: ${r.old} (未成长)</div>`;
+                }
+            }
+            
+            content.innerHTML = html;
+            summary.style.display = 'block';
+        }
+
+        loadCharacter();
+    </script>
+</body>
+</html>
