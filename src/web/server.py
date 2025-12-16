@@ -63,6 +63,7 @@ def create_app(db: Database, char_manager: CharacterManager) -> FastAPI:
         dex: int = Form(50), app: int = Form(50), int_val: int = Form(50),
         pow_val: int = Form(50), edu: int = Form(50), luk: int = Form(50),
         hp: int = Form(10), mp: int = Form(10), san: int = Form(50),
+        mov: int = Form(8), build: int = Form(0), db: str = Form("0"),
         skills: str = Form("")
     ):
         """创建角色卡 API"""
@@ -95,7 +96,10 @@ def create_app(db: Database, char_manager: CharacterManager) -> FastAPI:
             hp=hp, max_hp=hp,
             mp=mp, max_mp=mp,
             san=san, max_san=99,
-            luck=luk
+            luck=luk,
+            mov=mov,
+            build=build,
+            db=db
         )
         
         await char_manager.add(char)

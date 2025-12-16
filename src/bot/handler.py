@@ -18,7 +18,7 @@ class MessageHandler:
         self.db = db
         self.web_app = web_app
         self.check_manager = CheckManager()
-        self.command_prefix = "."
+        self.command_prefixes = (".", "。", "/")  # 支持多种前缀
     
     async def handle(self, event: dict):
         """处理消息事件"""
@@ -35,7 +35,15 @@ class MessageHandler:
             return
         
         content = event.get("content", "").strip()
-        if not content.startswith(self.command_prefix):
+        
+        # 检查是否以任意命令前缀开头
+        prefix_used = None
+        for prefix in self.command_prefixes:
+            if content.startswith(prefix):
+                prefix_used = prefix
+                break
+        
+        if not prefix_used:
             return
         
         # 解析命令
@@ -54,7 +62,7 @@ class MessageHandler:
         
         # 执行命令 (可能返回卡片消息)
         response, is_card = await self._execute_command(
-            content[1:], author_id, target_id, author_name
+            content[len(prefix_used):], author_id, target_id, author_name
         )
         
         if response:
@@ -158,9 +166,30 @@ class MessageHandler:
         self, cmd: str, user_id: str, channel_id: str = "", user_name: str = ""
     ) -> Tuple[Optional[str], bool]:
         """执行命令，返回 (响应内容, 是否为卡片消息)"""
+        # 支持紧凑格式的命令列表（可以不带空格）
+        # 按长度降序排列，优先匹配长的命令
+        compact_commands = ["rd", "rc", "ra", "r"]
+        
+        # 先尝试空格分隔
         parts = cmd.split(maxsplit=1)
         command = parts[0].lower()
         args = parts[1] if len(parts) > 1 else ""
+        
+        # 如果命令不在已知列表中，尝试紧凑格式解析
+        all_commands = ["r", "rd", "ra", "rc", "rule", "help", "check", "pc"]
+        if command not in all_commands:
+            # 尝试匹配紧凑格式命令前缀
+            cmd_lower = cmd.lower()
+            for prefix in compact_commands:
+                if cmd_lower.startswith(prefix) and len(cmd) > len(prefix):
+                    # 检查前缀后面不是ASCII字母（避免 "rule" 被解析为 "r" + "ule"）
+                    # 但允许中文、数字、rp（奖励骰/惩罚骰前缀）
+                    next_char = cmd[len(prefix)]
+                    is_ascii_letter = next_char.isascii() and next_char.isalpha()
+                    if not is_ascii_letter or next_char.lower() in "rp":
+                        command = prefix
+                        args = cmd[len(prefix) :]
+                        break
         
         # 需要 channel_id 的命令
         if command == "check":
@@ -186,35 +215,175 @@ class MessageHandler:
         return (None, False)
     
     async def _cmd_roll(self, args: str, user_id: str) -> str:
-        """基础骰点: .r 1d100"""
-        expr_str = args.strip() or "1d100"
-        expr = DiceParser.parse(expr_str)
+        """基础骰点: .r 1d100, .rd100, .rd6+d4+3, .rd r2 d100"""
+        args = args.strip() or "1d100"
         
+        # 解析奖励骰/惩罚骰: r1, r2, p1, p2 等
+        bonus, penalty = 0, 0
+        parts = args.split()
+        expr_str = args
+        
+        if len(parts) >= 1:
+            bp_match = self._parse_bonus_penalty(parts[0])
+            if bp_match:
+                bonus, penalty = bp_match
+                expr_str = " ".join(parts[1:]) or "d100"
+        
+        # 处理紧凑格式：如果表达式以数字开头，补上 d
+        # 例如 "100" -> "d100", "6+d4" -> "d6+d4"
+        expr_str = self._normalize_dice_expr(expr_str)
+        
+        # 如果是 d100 且有奖励/惩罚骰，使用特殊处理
+        if (bonus > 0 or penalty > 0) and expr_str.lower() in ("d100", "1d100"):
+            result = DiceRoller.roll_d100_with_bonus(bonus, penalty)
+            return str(result)
+        
+        # 普通骰点
+        expr = DiceParser.parse(expr_str)
         if not expr:
             return f"无效的骰点表达式: {expr_str}"
         
         result = DiceRoller.roll(expr)
         return str(result)
     
+    def _normalize_dice_expr(self, expr: str) -> str:
+        """
+        规范化骰点表达式，处理紧凑格式
+        - "100" -> "d100"
+        - "6+d4+3" -> "d6+d4+3"
+        - "d6+4" -> "d6+4" (不变)
+        """
+        import re
+        
+        expr = expr.strip()
+        if not expr:
+            return "d100"
+        
+        # 如果整个表达式就是一个数字，当作 dN
+        if expr.isdigit():
+            return f"d{expr}"
+        
+        # 处理表达式开头：如果以数字开头且后面是 +/-，补上 d
+        # 例如 "6+d4" -> "d6+d4"
+        if expr[0].isdigit():
+            match = re.match(r"^(\d+)([+-])", expr)
+            if match:
+                expr = f"d{expr}"
+        
+        return expr
+    
+    def _parse_bonus_penalty(self, token: str) -> tuple[int, int] | None:
+        """解析奖励骰/惩罚骰标记，返回 (bonus, penalty) 或 None"""
+        import re
+        match = re.match(r"^([rp])(\d*)$", token.lower())
+        if not match:
+            return None
+        bp_type, count_str = match.groups()
+        count = int(count_str) if count_str else 1
+        count = min(count, 10)  # 限制最多10个
+        if bp_type == "r":
+            return (count, 0)
+        else:
+            return (0, count)
+    
+    def _parse_ra_compact(self, args: str) -> tuple[int, int, str, int | None]:
+        """
+        解析紧凑格式的 ra 参数，如 r2侦查50, p1聆听, 侦查50, 侦查
+        返回: (bonus, penalty, skill_name, skill_value or None)
+        """
+        import re
+
+        args = args.strip()
+        bonus, penalty = 0, 0
+        skill_value = None
+        skill_name = args
+
+        # 先提取末尾的数字（技能值）
+        end_num_match = re.search(r"(\d+)$", args)
+        if end_num_match:
+            skill_value = int(end_num_match.group(1))
+            args = args[: end_num_match.start()]
+
+        # 再检查开头的奖励骰/惩罚骰
+        bp_match = re.match(r"^([rp])(\d*)", args, re.IGNORECASE)
+        if bp_match:
+            bp_type = bp_match.group(1).lower()
+            bp_count = int(bp_match.group(2)) if bp_match.group(2) else 1
+            bp_count = min(bp_count, 10)
+            if bp_type == "r":
+                bonus = bp_count
+            else:
+                penalty = bp_count
+            skill_name = args[bp_match.end() :]
+        else:
+            skill_name = args
+
+        return (bonus, penalty, skill_name.strip(), skill_value)
+
     async def _cmd_roll_attribute(self, args: str, user_id: str) -> str:
-        """技能检定: .ra 侦查"""
-        skill_name = args.strip()
+        """技能检定: .ra侦查, .ra侦查50, .rar2侦查, .rap1聆听60, 也支持空格分隔"""
+        args = args.strip()
+        if not args:
+            return "请指定技能名称，如: .ra侦查 或 .ra侦查50"
+
+        # 先尝试空格分隔的格式（向后兼容）
+        parts = args.split()
+        bonus, penalty = 0, 0
+        skill_value = None
+        skill_name = args
+
+        if len(parts) >= 2:
+            # 有空格，使用原来的解析逻辑
+            # 检查第一个参数是否是奖励骰/惩罚骰
+            bp_match = self._parse_bonus_penalty(parts[0])
+            if bp_match:
+                bonus, penalty = bp_match
+                parts = parts[1:]
+
+            if not parts:
+                return "请指定技能名称，如: .ra侦查 或 .rar2侦查"
+
+            # 检查最后一个参数是否是数字（指定值）
+            if len(parts) >= 2:
+                try:
+                    skill_value = int(parts[-1])
+                    parts = parts[:-1]
+                except ValueError:
+                    pass
+
+            skill_name = " ".join(parts)
+        else:
+            # 无空格，使用紧凑格式解析
+            bonus, penalty, skill_name, skill_value = self._parse_ra_compact(args)
+
         if not skill_name:
-            return "请指定技能名称，如: .ra 侦查"
-        
-        char = await self.char_manager.get_active(user_id)
-        if not char:
-            return "请先导入角色卡: .pc new {JSON}"
-        
-        skill_value = char.get_skill(skill_name)
+            return "请指定技能名称，如: .ra侦查 或 .ra侦查50"
+
+        # 如果没有指定值，从角色卡获取
         if skill_value is None:
-            return f"未找到技能: {skill_name}"
-        
-        return await self._do_check(user_id, skill_name, skill_value)
+            char = await self.char_manager.get_active(user_id)
+            if not char:
+                return "请先导入角色卡或指定技能值，如: .ra侦查50"
+
+            skill_value = char.get_skill(skill_name)
+            if skill_value is None:
+                return f"未找到技能: {skill_name}，可指定值: .ra{skill_name}50"
+
+        return await self._do_check(user_id, skill_name, skill_value, bonus, penalty)
     
     async def _cmd_roll_check(self, args: str, user_id: str) -> str:
-        """指定值检定: .rc 侦查 60"""
+        """指定值检定: .rc 侦查 60, .rc r2 侦查 60"""
         parts = args.split()
+        if len(parts) < 2:
+            return "格式: .rc <技能名> <值> 或 .rc r2 <技能名> <值>"
+        
+        # 解析奖励骰/惩罚骰
+        bonus, penalty = 0, 0
+        bp_match = self._parse_bonus_penalty(parts[0])
+        if bp_match:
+            bonus, penalty = bp_match
+            parts = parts[1:]
+        
         if len(parts) < 2:
             return "格式: .rc <技能名> <值>"
         
@@ -224,9 +393,12 @@ class MessageHandler:
         except ValueError:
             return "技能值必须是数字"
         
-        return await self._do_check(user_id, skill_name, skill_value)
+        return await self._do_check(user_id, skill_name, skill_value, bonus, penalty)
     
-    async def _do_check(self, user_id: str, skill_name: str, target: int) -> str:
+    async def _do_check(
+        self, user_id: str, skill_name: str, target: int, 
+        bonus: int = 0, penalty: int = 0
+    ) -> str:
         """执行检定"""
         rule_settings = await self.db.get_user_rule(user_id)
         rule = get_rule(
@@ -235,10 +407,18 @@ class MessageHandler:
             rule_settings["fumble"]
         )
         
-        roll = DiceRoller.roll_d100()
+        # 使用奖励骰/惩罚骰
+        if bonus > 0 or penalty > 0:
+            roll_result = DiceRoller.roll_d100_with_bonus(bonus, penalty)
+            roll = roll_result.final
+            roll_detail = str(roll_result)
+        else:
+            roll = DiceRoller.roll_d100()
+            roll_detail = f"D100={roll}"
+        
         result = rule.check(roll, target)
         
-        return f"**{skill_name}** 检定 ({rule.name})\n{result}"
+        return f"**{skill_name}** 检定 ({rule.name})\n{roll_detail}\n{result}"
 
     async def _cmd_character(self, args: str, user_id: str) -> Tuple[str, bool]:
         """角色卡命令: .pc <子命令>"""
@@ -419,9 +599,14 @@ class MessageHandler:
         return """**COC Dice Bot 帮助**
 
 **骰点命令**
-`.r / .rd <表达式>` - 骰点 (如 .rd 1d100, .r 3d6+5)
-`.ra <技能名>` - 技能检定 (需要角色卡)
-`.rc <技能名> <值>` - 指定值检定
+`.r / .rd <表达式>` - 骰点 (如 .rd 1d100, .r 3d6+5, .r 1d6+1d4)
+`.rd r2 d100` - 带2个奖励骰的d100
+`.rd p1 d100` - 带1个惩罚骰的d100
+`.ra <技能名>` - 技能检定 (使用角色卡数值)
+`.ra <技能名> <值>` - 指定值检定 (如 .ra 侦查 50)
+`.ra r2 侦查` - 带奖励骰的技能检定
+`.ra p1 聆听 60` - 带惩罚骰的指定值检定
+`.rc <技能名> <值>` - 指定值检定 (同 .ra 技能 值)
 
 **KP 命令**
 `.check <技能名> [描述]` - 发起检定 (玩家点击按钮骰点)

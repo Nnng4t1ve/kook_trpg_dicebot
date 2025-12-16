@@ -35,6 +35,32 @@ class Character:
         if resolved_name in self.skills:
             return self.skills[resolved_name]
         
+        # 尝试模糊匹配：用户可能存的是 "格斗:剑" 但别名解析出来也是 "格斗:剑"
+        # 或者用户存的是 "射击:步枪/霰弹枪" 但输入 "步枪"
+        # 统一用冒号格式匹配
+        normalized = resolved_name.replace("：", ":")
+        for skill_name in self.skills:
+            skill_normalized = skill_name.replace("：", ":")
+            # 完全匹配
+            if skill_normalized == normalized:
+                return self.skills[skill_name]
+            # 如果解析后的名字包含冒号，尝试匹配存储的技能
+            if ":" in normalized:
+                # 格斗:剑 匹配 格斗:剑
+                if skill_normalized == normalized:
+                    return self.skills[skill_name]
+            # 如果存储的技能包含冒号，检查后半部分是否匹配
+            if ":" in skill_normalized:
+                parts = skill_normalized.split(":", 1)
+                # "剑" 匹配 "格斗:剑" 的后半部分
+                if parts[1] == name or parts[1] == resolved_name:
+                    return self.skills[skill_name]
+                # "步枪" 匹配 "射击:步枪/霰弹枪" 中的任意部分
+                if "/" in parts[1]:
+                    sub_parts = parts[1].split("/")
+                    if name in sub_parts or resolved_name in sub_parts:
+                        return self.skills[skill_name]
+        
         # 再查属性 (大写)
         upper_name = resolved_name.upper()
         if upper_name in self.attributes:

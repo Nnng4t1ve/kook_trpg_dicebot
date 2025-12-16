@@ -585,7 +585,10 @@
                 skills,
                 hp: parseInt(document.getElementById('hp').textContent),
                 mp: parseInt(document.getElementById('mp').textContent),
-                san: parseInt(document.getElementById('san').textContent)
+                san: parseInt(document.getElementById('san').textContent),
+                mov: parseInt(document.getElementById('mov').textContent),
+                build: parseInt(document.getElementById('build').textContent),
+                db: document.getElementById('db').textContent
             };
         }
 
@@ -624,6 +627,9 @@
             formData.append('hp', charData.hp);
             formData.append('mp', charData.mp);
             formData.append('san', charData.san);
+            formData.append('mov', charData.mov);
+            formData.append('build', charData.build);
+            formData.append('db', charData.db);
             formData.append('skills', Object.entries(charData.skills).map(([k, v]) => `${k}:${v}`).join('\n'));
 
             try {
