@@ -105,7 +105,9 @@ class MessageHandler:
             await self._handle_grow_character_button(user_id, value)
         elif action == "opposed_check":
             await self._handle_opposed_check_button(value, user_id, target_id, user_name)
-    
+        elif action == "confirm_damage":
+            await self._handle_damage_button(value, user_id, target_id, user_name)
+
     async def _handle_san_check_button(
         self, value: dict, user_id: str, target_id: str, user_name: str
     ):
@@ -287,7 +289,7 @@ class MessageHandler:
         args = parts[1] if len(parts) > 1 else ""
         
         # 如果命令不在已知列表中，尝试紧凑格式解析
-        all_commands = ["r", "rd", "ra", "rc", "rule", "help", "check", "pc", "npc", "ad", "ri"]
+        all_commands = ["r", "rd", "ra", "rc", "rule", "help", "check", "pc", "npc", "ad", "ri", "dmg"]
         if command not in all_commands:
             # 尝试匹配紧凑格式命令前缀
             cmd_lower = cmd.lower()
@@ -308,6 +310,9 @@ class MessageHandler:
 
         if command == "ad":
             return await self._cmd_opposed_check(args, user_id, channel_id, user_name)
+
+        if command == "dmg":
+            return await self._cmd_damage(args, user_id, channel_id, user_name)
 
         if command == "npc":
             return await self._cmd_npc(args, user_id, channel_id, user_name)
@@ -1689,6 +1694,222 @@ class MessageHandler:
         card = CardBuilder.build_initiative_card(participants)
         return (card, True)
 
+    async def _cmd_damage(
+        self, args: str, user_id: str, channel_id: str, user_name: str
+    ) -> Tuple[str, bool]:
+        """
+        伤害命令: .dmg @用户 <伤害表达式> 或 .dmg npc <名称> <伤害表达式>
+        返回卡片，只有发起者能点击确认
+        """
+        import re
+
+        args = args.strip()
+        if not args:
+            return (
+                "**伤害命令**\n"
+                "`.dmg @用户 <伤害>` - 对玩家造成伤害\n"
+                "`.dmg npc <名称> <伤害>` - 对 NPC 造成伤害\n"
+                "示例: `.dmg @张三 1d6+2`, `.dmg npc 守卫 2d6`",
+                False,
+            )
+
+        # 检查是否是 NPC: .dmg npc <name> <damage>
+        if args.lower().startswith("npc "):
+            return await self._cmd_damage_npc(
+                args[4:].strip(), user_id, channel_id, user_name
+            )
+
+        # 解析 @用户 (KOOK 格式: (met)用户ID(met))
+        match = re.match(r"\(met\)(\d+)\(met\)\s*(.+)", args)
+        if not match:
+            return ("格式: `.dmg @用户 <伤害>` 或 `.dmg npc <名称> <伤害>`", False)
+
+        target_id = match.group(1)
+        damage_expr = match.group(2).strip()
+
+        if not damage_expr:
+            return ("请指定伤害值，如: `.dmg @用户 1d6+2`", False)
+
+        # 验证伤害表达式
+        normalized_expr = self._normalize_dice_expr(damage_expr)
+        if not damage_expr.isdigit() and not DiceParser.parse(normalized_expr):
+            return (f"无法解析伤害表达式: {damage_expr}", False)
+
+        # 获取目标角色卡
+        char = await self.char_manager.get_active(target_id)
+        if not char:
+            return (f"(met){target_id}(met) 没有激活的角色卡", False)
+
+        # 创建伤害检定
+        check = self.check_manager.create_damage_check(
+            initiator_id=user_id,
+            target_type="player",
+            target_id=target_id,
+            channel_id=channel_id,
+            damage_expr=damage_expr,
+        )
+
+        # 构建卡片
+        card = CardBuilder.build_damage_card(
+            check_id=check.check_id,
+            initiator_name=user_name,
+            target_name=char.name,
+            target_type="player",
+            damage_expr=damage_expr,
+            target_id=target_id,
+        )
+
+        logger.info(f"伤害检定: {user_id} -> {target_id}, expr={damage_expr}")
+        return (card, True)
+
+    async def _cmd_damage_npc(
+        self, args: str, user_id: str, channel_id: str, user_name: str
+    ) -> Tuple[str, bool]:
+        """对 NPC 造成伤害，返回卡片"""
+        parts = args.split(maxsplit=1)
+        if len(parts) < 2:
+            return ("格式: `.dmg npc <名称> <伤害>`\n示例: `.dmg npc 守卫 2d6`", False)
+
+        npc_name = parts[0]
+        damage_expr = parts[1].strip()
+
+        # 获取 NPC
+        npc = await self.npc_manager.get(channel_id, npc_name)
+        if not npc:
+            return (f"未找到 NPC: {npc_name}", False)
+
+        # 验证伤害表达式
+        normalized_expr = self._normalize_dice_expr(damage_expr)
+        if not damage_expr.isdigit() and not DiceParser.parse(normalized_expr):
+            return (f"无法解析伤害表达式: {damage_expr}", False)
+
+        # 创建伤害检定
+        check = self.check_manager.create_damage_check(
+            initiator_id=user_id,
+            target_type="npc",
+            target_id=npc_name,
+            channel_id=channel_id,
+            damage_expr=damage_expr,
+        )
+
+        # 构建卡片
+        card = CardBuilder.build_damage_card(
+            check_id=check.check_id,
+            initiator_name=user_name,
+            target_name=npc.name,
+            target_type="npc",
+            damage_expr=damage_expr,
+        )
+
+        logger.info(f"NPC伤害检定: {user_id} -> {npc_name}, expr={damage_expr}")
+        return (card, True)
+
+    async def _handle_damage_button(
+        self, value: dict, user_id: str, channel_id: str, user_name: str
+    ):
+        """处理伤害确认按钮点击"""
+        from ..data.npc_status import get_hp_status, get_hp_bar
+
+        check_id = value.get("check_id")
+
+        check = self.check_manager.get_damage_check(check_id)
+        if not check:
+            await self.client.send_message(
+                channel_id, f"(met){user_id}(met) 该伤害确认已过期", msg_type=9
+            )
+            return
+
+        # 验证是否是发起者
+        if user_id != check.initiator_id:
+            await self.client.send_message(
+                channel_id, f"(met){user_id}(met) 只有发起者可以确认伤害", msg_type=9
+            )
+            return
+
+        # 计算伤害
+        damage = self._calc_damage(check.damage_expr)
+        if damage is None:
+            await self.client.send_message(
+                channel_id, f"无法解析伤害表达式: {check.damage_expr}", msg_type=9
+            )
+            return
+
+        if check.target_type == "npc":
+            # NPC 伤害
+            npc = await self.npc_manager.get(check.channel_id, check.target_id)
+            if not npc:
+                await self.client.send_message(
+                    channel_id, f"未找到 NPC: {check.target_id}", msg_type=9
+                )
+                return
+
+            old_hp = npc.hp
+            npc.hp = max(0, old_hp - damage)
+            await self.db.save_npc(check.channel_id, npc)
+
+            status_level, status_desc = get_hp_status(npc.hp, npc.max_hp)
+            hp_bar = get_hp_bar(npc.hp, npc.max_hp)
+
+            card = CardBuilder.build_damage_result_card(
+                target_name=npc.name,
+                target_type="npc",
+                damage_expr=check.damage_expr,
+                damage=damage,
+                new_hp=npc.hp,
+                hp_bar=hp_bar,
+                status_desc=status_desc,
+            )
+        else:
+            # 玩家伤害
+            char = await self.char_manager.get_active(check.target_id)
+            if not char:
+                await self.client.send_message(
+                    channel_id, f"目标玩家没有激活的角色卡", msg_type=9
+                )
+                return
+
+            old_hp = char.hp
+            char.hp = max(0, old_hp - damage)
+            await self.char_manager.add(char)
+
+            status_level, status_desc = get_hp_status(char.hp, char.max_hp)
+            hp_bar = get_hp_bar(char.hp, char.max_hp)
+
+            card = CardBuilder.build_damage_result_card(
+                target_name=char.name,
+                target_type="player",
+                damage_expr=check.damage_expr,
+                damage=damage,
+                old_hp=old_hp,
+                new_hp=char.hp,
+                max_hp=char.max_hp,
+                hp_bar=hp_bar,
+                status_level=status_level,
+            )
+
+        # 移除检定
+        self.check_manager.remove_damage_check(check_id)
+
+        # 发送结果卡片
+        await self.client.send_message(channel_id, card, msg_type=10)
+
+    def _calc_damage(self, expr: str) -> int | None:
+        """计算伤害值，支持数字或骰点表达式"""
+        expr = expr.strip()
+
+        # 纯数字
+        if expr.isdigit():
+            return int(expr)
+
+        # 骰点表达式
+        expr = self._normalize_dice_expr(expr)
+        parsed = DiceParser.parse(expr)
+        if parsed:
+            result = DiceRoller.roll(parsed)
+            return max(0, result.total)  # 伤害不能为负
+
+        return None
+
     async def _cmd_help(self, args: str, user_id: str) -> str:
         """帮助命令"""
         return """**COC Dice Bot 帮助**
@@ -1710,6 +1931,8 @@ class MessageHandler:
 `.ad @用户 <技能>` - 对抗检定 (如 .ad @张三 力量)
 `.ad @用户 <我的技能> <对方技能>` - 不同技能对抗 (如 .ad @张三 斗殴 闪避)
 `.ad npc <NPC名> <技能>` - 向 NPC 发起对抗 (如 .ad npc 守卫 斗殴)
+`.dmg @用户 <伤害>` - 对玩家造成伤害 (如 .dmg @张三 1d6+2)
+`.dmg npc <名称> <伤害>` - 对 NPC 造成伤害 (如 .dmg npc 守卫 2d6)
 `.ri @用户1 @用户2 npc <NPC名>` - 先攻顺序表 (按 DEX 排序)
 
 **NPC 命令**

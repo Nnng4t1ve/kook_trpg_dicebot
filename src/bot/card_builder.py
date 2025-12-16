@@ -633,6 +633,121 @@ class CardBuilder:
         return json.dumps([card])
 
     @staticmethod
+    def build_damage_card(
+        check_id: str,
+        initiator_name: str,
+        target_name: str,
+        target_type: str,
+        damage_expr: str,
+        target_id: str = None,
+    ) -> str:
+        """构建伤害确认卡片"""
+        if target_type == "npc":
+            target_display = f"**{target_name}** (NPC)"
+        else:
+            target_display = f"**{target_name}** (met){target_id}(met)"
+
+        card = {
+            "type": "card",
+            "theme": "danger",
+            "size": "lg",
+            "modules": [
+                {
+                    "type": "header",
+                    "text": {"type": "plain-text", "content": "⚔️ 伤害确认"},
+                },
+                {"type": "divider"},
+                {
+                    "type": "section",
+                    "text": {
+                        "type": "kmarkdown",
+                        "content": f"**{initiator_name}** 对 {target_display} 造成伤害\n伤害: **{damage_expr}**",
+                    },
+                },
+                {
+                    "type": "context",
+                    "elements": [
+                        {
+                            "type": "kmarkdown",
+                            "content": f"只有 **{initiator_name}** 可以确认伤害",
+                        }
+                    ],
+                },
+                {
+                    "type": "action-group",
+                    "elements": [
+                        {
+                            "type": "button",
+                            "theme": "danger",
+                            "value": json.dumps(
+                                {
+                                    "action": "confirm_damage",
+                                    "check_id": check_id,
+                                }
+                            ),
+                            "click": "return-val",
+                            "text": {"type": "plain-text", "content": "🎲 确认伤害"},
+                        }
+                    ],
+                },
+            ],
+        }
+        return json.dumps([card])
+
+    @staticmethod
+    def build_damage_result_card(
+        target_name: str,
+        target_type: str,
+        damage_expr: str,
+        damage: int,
+        old_hp: int = None,
+        new_hp: int = None,
+        max_hp: int = None,
+        hp_bar: str = None,
+        status_level: str = None,
+        status_desc: str = None,
+    ) -> str:
+        """构建伤害结果卡片"""
+        theme = "danger"
+
+        if target_type == "npc":
+            # NPC 不显示具体 HP 数值
+            content = (
+                f"⚔️ **{target_name}** 受到攻击\n"
+                f"伤害: {damage_expr} = **{damage}**\n"
+                f"[{hp_bar}]\n"
+                f"状态: _{status_desc}_"
+            )
+            if new_hp == 0:
+                content += f"\n\n💀 **{target_name}** {status_desc}"
+        else:
+            # 玩家显示具体 HP 数值
+            content = (
+                f"⚔️ **{target_name}** 受到伤害\n"
+                f"伤害: {damage_expr} = **{damage}**\n"
+                f"HP: {old_hp} → **{new_hp}** / {max_hp}\n"
+                f"[{hp_bar}] {status_level}"
+            )
+            if new_hp == 0:
+                content += "\n\n💀 **角色倒下了！**"
+
+        card = {
+            "type": "card",
+            "theme": theme,
+            "size": "lg",
+            "modules": [
+                {
+                    "type": "section",
+                    "text": {
+                        "type": "kmarkdown",
+                        "content": content,
+                    },
+                },
+            ],
+        }
+        return json.dumps([card])
+
+    @staticmethod
     def build_initiative_card(participants: List[tuple]) -> str:
         """
         构建先攻顺序卡片

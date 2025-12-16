@@ -24,6 +24,21 @@ class PendingCheck:
 
 
 @dataclass
+class DamageCheck:
+    """伤害检定"""
+    check_id: str
+    initiator_id: str  # 发起者 ID (只有发起者能确认)
+    target_type: str  # "player" 或 "npc"
+    target_id: str  # 玩家 ID 或 NPC 名称
+    channel_id: str
+    damage_expr: str  # 伤害表达式
+    created_at: float
+
+    def is_expired(self, timeout: int = 600) -> bool:
+        return time.time() - self.created_at > timeout
+
+
+@dataclass
 class OpposedCheck:
     """对抗检定"""
     check_id: str
@@ -76,6 +91,7 @@ class CheckManager:
     def __init__(self, cleanup_interval: int = 300):
         self._checks: Dict[str, PendingCheck] = {}
         self._opposed_checks: Dict[str, OpposedCheck] = {}
+        self._damage_checks: Dict[str, DamageCheck] = {}
         self._cleanup_interval = cleanup_interval  # 清理间隔（秒）
         self._cleanup_task: Optional[asyncio.Task] = None
     
@@ -207,6 +223,44 @@ class CheckManager:
             return True
         return False
 
+    # ===== 伤害检定 =====
+    def create_damage_check(
+        self,
+        initiator_id: str,
+        target_type: str,
+        target_id: str,
+        channel_id: str,
+        damage_expr: str,
+    ) -> DamageCheck:
+        """创建伤害检定"""
+        check_id = str(uuid.uuid4())[:8]
+        check = DamageCheck(
+            check_id=check_id,
+            initiator_id=initiator_id,
+            target_type=target_type,
+            target_id=target_id,
+            channel_id=channel_id,
+            damage_expr=damage_expr,
+            created_at=time.time(),
+        )
+        self._damage_checks[check_id] = check
+        self._cleanup_expired()
+        return check
+
+    def get_damage_check(self, check_id: str) -> Optional[DamageCheck]:
+        """获取伤害检定"""
+        check = self._damage_checks.get(check_id)
+        if check and not check.is_expired():
+            return check
+        return None
+
+    def remove_damage_check(self, check_id: str) -> bool:
+        """移除伤害检定"""
+        if check_id in self._damage_checks:
+            del self._damage_checks[check_id]
+            return True
+        return False
+
     def _cleanup_expired(self) -> int:
         """清理过期检定，返回清理数量"""
         count = 0
@@ -218,11 +272,16 @@ class CheckManager:
         for k in expired:
             del self._opposed_checks[k]
             count += 1
+        expired = [k for k, v in self._damage_checks.items() if v.is_expired()]
+        for k in expired:
+            del self._damage_checks[k]
+            count += 1
         return count
-    
+
     def get_stats(self) -> dict:
         """获取统计信息"""
         return {
             "pending_checks": len(self._checks),
-            "opposed_checks": len(self._opposed_checks)
+            "opposed_checks": len(self._opposed_checks),
+            "damage_checks": len(self._damage_checks),
         }
