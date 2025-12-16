@@ -213,6 +213,7 @@ class MessageHandler:
             "rc": self._cmd_roll_check,
             "sc": self._cmd_san_check,
             "rule": self._cmd_rule,
+            "set": self._cmd_set_rule,
             "help": self._cmd_help,
         }
         
@@ -719,7 +720,40 @@ class MessageHandler:
             except ValueError:
                 return "请输入有效数字"
         
-        return "可用命令: show, coc6, coc7, crit <值>, fumble <值>"
+        return "可用命令: show, coc6, coc7, crit <值>, fumble <值>\n或使用 `.set 1/2/3` 快速切换预设规则"
+
+    async def _cmd_set_rule(self, args: str, user_id: str) -> str:
+        """快速切换预设规则: .set 1/2/3"""
+        from ..dice.rules import RULE_PRESETS, get_preset_rule
+        
+        args = args.strip()
+        
+        # 无参数时显示所有预设
+        if not args:
+            lines = ["**可用规则预设**"]
+            for preset_id, preset in RULE_PRESETS.items():
+                lines.append(f"`.set {preset_id}` - {preset['name']}: {preset['desc']}")
+            return "\n".join(lines)
+        
+        # 解析预设编号
+        try:
+            preset_id = int(args)
+        except ValueError:
+            return "请输入预设编号，如 `.set 1`\n使用 `.set` 查看所有预设"
+        
+        preset = get_preset_rule(preset_id)
+        if not preset:
+            return f"未知预设编号: {preset_id}\n使用 `.set` 查看所有预设"
+        
+        # 应用预设
+        await self.db.set_user_rule(
+            user_id,
+            rule=preset["rule"],
+            critical=preset["critical"],
+            fumble=preset["fumble"]
+        )
+        
+        return f"已切换到 **{preset['name']}**\n{preset['desc']}"
     
     async def _cmd_kp_check(
         self, args: str, user_id: str, channel_id: str, user_name: str
@@ -1012,7 +1046,10 @@ class MessageHandler:
 `.pc del <名称>` - 删除角色卡
 
 **规则命令**
+`.set` - 查看所有预设规则
+`.set 1` - COC7标准规则
+`.set 2` - COC7村规 (技能≥50: 1-5大成功; <50: 仅1大成功)
+`.set 3` - COC6标准规则
 `.rule show` - 显示当前规则
-`.rule coc6/coc7` - 切换规则
 `.rule crit <值>` - 设置大成功阈值
 `.rule fumble <值>` - 设置大失败阈值"""

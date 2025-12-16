@@ -114,11 +114,61 @@ class COC7Rule(COCRule):
         return CheckResult(roll=roll, target=target, level=level, rule_name=self.name)
 
 
+class COC7HouseRule(COCRule):
+    """COC7 村规: 技能>=50时1-5大成功，技能<50时仅1大成功，大失败都是96-100"""
+    
+    @property
+    def name(self) -> str:
+        return "COC7村规"
+    
+    def check(self, roll: int, target: int) -> CheckResult:
+        """COC7 村规检定"""
+        extreme = target // 5  # 极难成功阈值
+        hard = target // 2     # 困难成功阈值
+        
+        # 大成功: 技能>=50时1-5，技能<50时仅1
+        if target >= 50 and roll <= 5:
+            level = SuccessLevel.CRITICAL
+        elif target < 50 and roll == 1:
+            level = SuccessLevel.CRITICAL
+        # 大失败: 96-100
+        elif roll >= 96:
+            level = SuccessLevel.FUMBLE
+        # 极难成功
+        elif roll <= extreme:
+            level = SuccessLevel.EXTREME
+        # 困难成功
+        elif roll <= hard:
+            level = SuccessLevel.HARD
+        # 普通成功
+        elif roll <= target:
+            level = SuccessLevel.REGULAR
+        # 失败
+        else:
+            level = SuccessLevel.FAILURE
+        
+        return CheckResult(roll=roll, target=target, level=level, rule_name=self.name)
+
+
+# 预设规则集
+RULE_PRESETS = {
+    1: {"name": "COC7标准", "rule": "coc7", "critical": 5, "fumble": 96, "desc": "COC7 标准规则"},
+    2: {"name": "COC7村规", "rule": "coc7house", "critical": 5, "fumble": 96, "desc": "技能≥50: 1-5大成功; 技能<50: 仅1大成功; 大失败96-100"},
+    3: {"name": "COC6标准", "rule": "coc6", "critical": 5, "fumble": 96, "desc": "COC6 标准规则"},
+}
+
+
 def get_rule(rule_name: str, critical: int = 5, fumble: int = 96) -> COCRule:
     """获取规则实例"""
     rules = {
         "coc6": COC6Rule,
         "coc7": COC7Rule,
+        "coc7house": COC7HouseRule,
     }
     rule_class = rules.get(rule_name.lower(), COC7Rule)
     return rule_class(critical_threshold=critical, fumble_threshold=fumble)
+
+
+def get_preset_rule(preset_id: int) -> dict | None:
+    """获取预设规则"""
+    return RULE_PRESETS.get(preset_id)
