@@ -86,6 +86,19 @@ class Database:
                     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
                 """)
 
+                await cur.execute("""
+                    CREATE TABLE IF NOT EXISTS npcs (
+                        id INT AUTO_INCREMENT PRIMARY KEY,
+                        channel_id VARCHAR(64) NOT NULL,
+                        name VARCHAR(128) NOT NULL,
+                        template_id INT DEFAULT 1,
+                        data JSON NOT NULL,
+                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                        UNIQUE KEY uk_channel_name (channel_id, name),
+                        INDEX idx_channel (channel_id)
+                    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+                """)
+
     async def save_character(self, char: Character):
         """保存角色卡"""
         async with self._pool.acquire() as conn:
@@ -196,3 +209,66 @@ class Database:
                        fumble_threshold = new_data.fumble_threshold""",
                     (user_id, rule, critical, fumble),
                 )
+
+
+    # ===== NPC 操作 =====
+
+    async def save_npc(self, channel_id: str, npc: Character, template_id: int = 1):
+        """保存 NPC"""
+        async with self._pool.acquire() as conn:
+            async with conn.cursor() as cur:
+                await cur.execute(
+                    """INSERT INTO npcs (channel_id, name, template_id, data) 
+                       VALUES (%s, %s, %s, %s) AS new_data
+                       ON DUPLICATE KEY UPDATE 
+                       template_id = new_data.template_id,
+                       data = new_data.data""",
+                    (channel_id, npc.name, template_id, npc.to_json()),
+                )
+
+    async def get_npc(self, channel_id: str, name: str) -> Optional[Character]:
+        """获取 NPC"""
+        async with self._pool.acquire() as conn:
+            async with conn.cursor() as cur:
+                await cur.execute(
+                    "SELECT data FROM npcs WHERE channel_id = %s AND name = %s",
+                    (channel_id, name),
+                )
+                row = await cur.fetchone()
+                if row:
+                    data = json.loads(row[0]) if isinstance(row[0], str) else row[0]
+                    return Character.from_dict(data)
+        return None
+
+    async def list_npcs(self, channel_id: str) -> List[Character]:
+        """列出频道所有 NPC"""
+        npcs = []
+        async with self._pool.acquire() as conn:
+            async with conn.cursor() as cur:
+                await cur.execute(
+                    "SELECT data FROM npcs WHERE channel_id = %s", (channel_id,)
+                )
+                rows = await cur.fetchall()
+                for row in rows:
+                    data = json.loads(row[0]) if isinstance(row[0], str) else row[0]
+                    npcs.append(Character.from_dict(data))
+        return npcs
+
+    async def delete_npc(self, channel_id: str, name: str) -> bool:
+        """删除 NPC"""
+        async with self._pool.acquire() as conn:
+            async with conn.cursor() as cur:
+                await cur.execute(
+                    "DELETE FROM npcs WHERE channel_id = %s AND name = %s",
+                    (channel_id, name),
+                )
+                return cur.rowcount > 0
+
+    async def clear_channel_npcs(self, channel_id: str) -> int:
+        """清空频道所有 NPC"""
+        async with self._pool.acquire() as conn:
+            async with conn.cursor() as cur:
+                await cur.execute(
+                    "DELETE FROM npcs WHERE channel_id = %s", (channel_id,)
+                )
+                return cur.rowcount

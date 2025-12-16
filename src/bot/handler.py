@@ -4,7 +4,7 @@ from typing import Optional, Tuple
 from loguru import logger
 from ..dice import DiceParser, DiceRoller, CheckResult
 from ..dice.rules import get_rule
-from ..character import CharacterManager, CharacterImporter
+from ..character import CharacterManager, CharacterImporter, NPCManager, NPC_TEMPLATES
 from .card_builder import CardBuilder
 from .check_manager import CheckManager
 
@@ -18,6 +18,7 @@ class MessageHandler:
         self.db = db
         self.web_app = web_app
         self.check_manager = CheckManager()
+        self.npc_manager = NPCManager(db)
         self.command_prefixes = (".", "。", "/")  # 支持多种前缀
     
     async def handle(self, event: dict):
@@ -286,7 +287,7 @@ class MessageHandler:
         args = parts[1] if len(parts) > 1 else ""
         
         # 如果命令不在已知列表中，尝试紧凑格式解析
-        all_commands = ["r", "rd", "ra", "rc", "rule", "help", "check", "pc"]
+        all_commands = ["r", "rd", "ra", "rc", "rule", "help", "check", "pc", "npc", "ad"]
         if command not in all_commands:
             # 尝试匹配紧凑格式命令前缀
             cmd_lower = cmd.lower()
@@ -307,6 +308,9 @@ class MessageHandler:
 
         if command == "ad":
             return await self._cmd_opposed_check(args, user_id, channel_id, user_name)
+
+        if command == "npc":
+            return await self._cmd_npc(args, user_id, channel_id, user_name)
 
         # pc create 需要返回卡片
         if command == "pc":
@@ -920,21 +924,28 @@ class MessageHandler:
     async def _cmd_opposed_check(
         self, args: str, user_id: str, channel_id: str, user_name: str
     ) -> Tuple[str, bool]:
-        """对抗检定: .ad @用户 力量 或 .ad @用户 斗殴 闪避 r1 p1"""
+        """对抗检定: .ad @用户 力量 或 .ad npc <npc名> 斗殴 闪避 r1 p1"""
         import re
 
         args = args.strip()
         if not args:
             return (
                 "格式: `.ad @用户 <技能> [r/p] [r/p]`\n"
-                "示例: `.ad @张三 力量` 或 `.ad @张三 斗殴 闪避 r1 p1`",
+                "或: `.ad npc <NPC名> <技能> [r/p] [r/p]`\n"
+                "示例: `.ad @张三 力量` 或 `.ad npc 守卫 斗殴 闪避 r1 p1`",
                 False,
+            )
+
+        # 检查是否是 NPC 对抗: .ad npc <name> ...
+        if args.lower().startswith("npc "):
+            return await self._cmd_opposed_check_vs_npc(
+                args[4:].strip(), user_id, channel_id, user_name
             )
 
         # 解析 @用户 (KOOK 格式: (met)用户ID(met))
         match = re.match(r"\(met\)(\d+)\(met\)\s*(.+)", args)
         if not match:
-            return ("格式: `.ad @用户 <技能>`\n请 @ 一个用户", False)
+            return ("格式: `.ad @用户 <技能>` 或 `.ad npc <NPC名> <技能>`", False)
 
         target_id = match.group(1)
         rest_part = match.group(2).strip()
@@ -1006,6 +1017,127 @@ class MessageHandler:
         )
         return (card, True)
 
+    async def _cmd_opposed_check_vs_npc(
+        self, args: str, user_id: str, channel_id: str, user_name: str
+    ) -> Tuple[str, bool]:
+        """玩家向 NPC 发起对抗: .ad npc <npc名> <技能1> [技能2] [r/p]"""
+        parts = args.split()
+        if not parts:
+            return ("格式: `.ad npc <NPC名> <技能> [r/p]`", False)
+
+        npc_name = parts[0]
+        rest_parts = parts[1:]
+
+        # 获取 NPC
+        npc = await self.npc_manager.get(channel_id, npc_name)
+        if not npc:
+            return (f"未找到 NPC: {npc_name}", False)
+
+        if not rest_parts:
+            return ("请指定技能名称", False)
+
+        # 解析技能和奖励骰/惩罚骰
+        player_skill = None
+        npc_skill = None
+        player_bonus, player_penalty = 0, 0
+        npc_bonus, npc_penalty = 0, 0
+
+        skills = []
+        bp_list = []
+
+        for part in rest_parts:
+            bp = self._parse_bonus_penalty(part)
+            if bp:
+                bp_list.append(bp)
+            else:
+                skills.append(part)
+
+        if len(skills) == 0:
+            return ("请指定技能名称", False)
+        elif len(skills) == 1:
+            player_skill = skills[0]
+            npc_skill = skills[0]
+        else:
+            player_skill = skills[0]
+            npc_skill = skills[1]
+
+        # 分配奖励骰/惩罚骰 (第一个给玩家，第二个给 NPC)
+        if len(bp_list) >= 1:
+            player_bonus, player_penalty = bp_list[0]
+        if len(bp_list) >= 2:
+            npc_bonus, npc_penalty = bp_list[1]
+
+        # 验证 NPC 有这个技能
+        npc_skill_value = npc.get_skill(npc_skill)
+        if npc_skill_value is None:
+            return (f"NPC **{npc_name}** 没有技能: {npc_skill}", False)
+
+        # 创建对抗检定 (玩家为发起者，NPC 为目标)
+        check = self.check_manager.create_opposed_check(
+            initiator_id=user_id,
+            target_id=f"npc:{npc_name}:{channel_id}",
+            initiator_skill=player_skill,
+            target_skill=npc_skill,
+            channel_id=channel_id,
+            initiator_bonus=player_bonus,
+            initiator_penalty=player_penalty,
+            target_bonus=npc_bonus,
+            target_penalty=npc_penalty,
+        )
+
+        # NPC 立即进行检定
+        from ..dice.rules import SuccessLevel
+
+        rule_settings = await self.db.get_user_rule(user_id)
+        rule = get_rule(
+            rule_settings["rule"], rule_settings["critical"], rule_settings["fumble"]
+        )
+
+        if npc_bonus > 0 or npc_penalty > 0:
+            roll_result = DiceRoller.roll_d100_with_bonus(npc_bonus, npc_penalty)
+            npc_roll = roll_result.final
+        else:
+            npc_roll = DiceRoller.roll_d100()
+
+        npc_result = rule.check(npc_roll, npc_skill_value)
+
+        level_values = {
+            SuccessLevel.CRITICAL: 4,
+            SuccessLevel.EXTREME: 3,
+            SuccessLevel.HARD: 2,
+            SuccessLevel.REGULAR: 1,
+            SuccessLevel.FAILURE: 0,
+            SuccessLevel.FUMBLE: 0,
+        }
+        npc_level = level_values[npc_result.level]
+
+        # 保存 NPC 结果 (作为 target)
+        self.check_manager.set_opposed_result(
+            check.check_id,
+            f"npc:{npc_name}:{channel_id}",
+            npc_roll,
+            npc_skill_value,
+            npc_level,
+        )
+
+        # 构建卡片 (玩家点击按钮进行检定)
+        card = CardBuilder.build_player_vs_npc_opposed_card(
+            check_id=check.check_id,
+            player_name=user_name,
+            player_id=user_id,
+            npc_name=npc_name,
+            player_skill=player_skill,
+            npc_skill=npc_skill,
+            npc_roll=npc_roll,
+            npc_target=npc_skill_value,
+            npc_level=npc_result.level.value,
+            player_bp=(player_bonus, player_penalty),
+            npc_bp=(npc_bonus, npc_penalty),
+        )
+
+        logger.info(f"玩家对抗NPC: {user_id}({player_skill}) vs {npc_name}({npc_skill})")
+        return (card, True)
+
     async def _handle_opposed_check_button(
         self, value: dict, user_id: str, channel_id: str, user_name: str
     ):
@@ -1021,12 +1153,32 @@ class MessageHandler:
             )
             return
 
+        # 检查是否涉及 NPC
+        npc_is_initiator = check.initiator_id.startswith("npc:")
+        npc_is_target = check.target_id.startswith("npc:")
+
         # 验证是否是参与者
-        if user_id not in (check.initiator_id, check.target_id):
-            await self.client.send_message(
-                channel_id, f"(met){user_id}(met) 你不是这次对抗的参与者", msg_type=9
-            )
-            return
+        if npc_is_initiator:
+            # NPC 发起对抗：只有目标玩家可以点击
+            if user_id != check.target_id:
+                await self.client.send_message(
+                    channel_id, f"(met){user_id}(met) 你不是这次对抗的参与者", msg_type=9
+                )
+                return
+        elif npc_is_target:
+            # 玩家向 NPC 发起对抗：只有发起者玩家可以点击
+            if user_id != check.initiator_id:
+                await self.client.send_message(
+                    channel_id, f"(met){user_id}(met) 你不是这次对抗的参与者", msg_type=9
+                )
+                return
+        else:
+            # 普通玩家对抗
+            if user_id not in (check.initiator_id, check.target_id):
+                await self.client.send_message(
+                    channel_id, f"(met){user_id}(met) 你不是这次对抗的参与者", msg_type=9
+                )
+                return
 
         # 检查是否已经检定过
         if user_id == check.initiator_id and check.initiator_level is not None:
@@ -1106,12 +1258,23 @@ class MessageHandler:
     async def _send_opposed_result(self, check, channel_id: str):
         """发送对抗检定最终结果"""
         # 获取双方名字
-        init_char = await self.char_manager.get_active(check.initiator_id)
-        target_char = await self.char_manager.get_active(check.target_id)
-        init_name = init_char.name if init_char else f"(met){check.initiator_id}(met)"
-        target_name = (
-            target_char.name if target_char else f"(met){check.target_id}(met)"
-        )
+        # 检查是否是 NPC (initiator_id 格式: "npc:名称:channel_id")
+        if check.initiator_id.startswith("npc:"):
+            parts = check.initiator_id.split(":", 2)
+            init_name = parts[1] if len(parts) > 1 else "NPC"
+        else:
+            init_char = await self.char_manager.get_active(check.initiator_id)
+            init_name = init_char.name if init_char else f"(met){check.initiator_id}(met)"
+
+        # 检查目标是否是 NPC
+        if check.target_id.startswith("npc:"):
+            parts = check.target_id.split(":", 2)
+            target_name = parts[1] if len(parts) > 1 else "NPC"
+        else:
+            target_char = await self.char_manager.get_active(check.target_id)
+            target_name = (
+                target_char.name if target_char else f"(met){check.target_id}(met)"
+            )
 
         # 等级数值转文字
         level_names = {4: "大成功", 3: "极难成功", 2: "困难成功", 1: "成功", 0: "失败"}
@@ -1149,6 +1312,314 @@ class MessageHandler:
 
         await self.client.send_message(channel_id, card, msg_type=10)
 
+    async def _cmd_npc(
+        self, args: str, user_id: str, channel_id: str, user_name: str
+    ) -> Tuple[str, bool]:
+        """NPC 命令: .npc create <name> <模板>, .npc <name> ra <技能>, .npc <name> ad @用户 <技能>"""
+        import re
+
+        args = args.strip()
+        if not args:
+            return (
+                "**NPC 命令**\n"
+                "`.npc create <名称> [模板]` - 创建 NPC (模板: 1=普通, 2=困难, 3=极难)\n"
+                "`.npc <名称> ra <技能>` - NPC 技能检定\n"
+                "`.npc <名称> ad @用户 <技能1> [技能2] [r/p]` - NPC 对抗检定\n"
+                "`.npc list` - 列出当前频道 NPC\n"
+                "`.npc del <名称>` - 删除 NPC\n"
+                "`.npc <名称>` - 查看 NPC 属性",
+                False,
+            )
+
+        parts = args.split(maxsplit=1)
+        sub_cmd = parts[0].lower()
+        sub_args = parts[1] if len(parts) > 1 else ""
+
+        # .npc create <name> [template]
+        if sub_cmd == "create":
+            return await self._npc_create(sub_args, channel_id)
+
+        # .npc list
+        if sub_cmd == "list":
+            return await self._npc_list(channel_id)
+
+        # .npc del <name>
+        if sub_cmd == "del":
+            return await self._npc_delete(sub_args, channel_id)
+
+        # 其他情况: .npc <name> [子命令]
+        # 第一个参数是 NPC 名称
+        npc_name = sub_cmd
+        npc = await self.npc_manager.get(channel_id, npc_name)
+
+        if not npc:
+            return (f"未找到 NPC: {npc_name}\n使用 `.npc create {npc_name} [1/2/3]` 创建", False)
+
+        if not sub_args:
+            # .npc <name> - 显示 NPC 信息
+            return self._npc_show(npc)
+
+        # 解析子命令
+        sub_parts = sub_args.split(maxsplit=1)
+        npc_cmd = sub_parts[0].lower()
+        npc_args = sub_parts[1] if len(sub_parts) > 1 else ""
+
+        if npc_cmd == "ra":
+            return await self._npc_ra(npc, npc_args, user_id)
+        elif npc_cmd == "ad":
+            return await self._npc_ad(npc, npc_args, channel_id, user_name)
+        else:
+            # 可能是紧凑格式: .npc name ra力量 -> sub_args = "ra力量"
+            if sub_args.lower().startswith("ra"):
+                skill_part = sub_args[2:]
+                return await self._npc_ra(npc, skill_part, user_id)
+            elif sub_args.lower().startswith("ad"):
+                ad_part = sub_args[2:]
+                return await self._npc_ad(npc, ad_part, channel_id, user_name)
+            else:
+                return (f"未知 NPC 子命令: {npc_cmd}\n可用: ra, ad", False)
+
+    async def _npc_create(self, args: str, channel_id: str) -> Tuple[str, bool]:
+        """创建 NPC"""
+        parts = args.split()
+        if not parts:
+            return ("格式: `.npc create <名称> [模板]`\n模板: 1=普通, 2=困难, 3=极难", False)
+
+        name = parts[0]
+        template_id = 1
+        if len(parts) > 1:
+            try:
+                template_id = int(parts[1])
+            except ValueError:
+                return ("模板必须是数字 (1/2/3)", False)
+
+        if template_id not in NPC_TEMPLATES:
+            return (f"无效模板: {template_id}\n可用: 1=普通, 2=困难, 3=极难", False)
+
+        # 检查是否已存在
+        existing = await self.npc_manager.get(channel_id, name)
+        if existing:
+            return (f"NPC **{name}** 已存在，请先删除或使用其他名称", False)
+
+        npc = await self.npc_manager.create(channel_id, name, template_id)
+        if not npc:
+            return ("创建失败", False)
+
+        template = NPC_TEMPLATES[template_id]
+        attrs = " | ".join(f"{k}:{v}" for k, v in npc.attributes.items())
+        skills = " | ".join(f"{k}:{v}" for k, v in npc.skills.items())
+
+        return (
+            f"✅ NPC **{name}** 创建成功 (模板: {template['name']})\n"
+            f"属性: {attrs}\n"
+            f"技能: {skills}",
+            False,
+        )
+
+    async def _npc_list(self, channel_id: str) -> Tuple[str, bool]:
+        """列出频道 NPC"""
+        npcs = await self.npc_manager.list_all(channel_id)
+        if not npcs:
+            return ("当前频道没有 NPC", False)
+
+        lines = ["**NPC 列表**"]
+        for npc in npcs:
+            attrs_brief = f"STR:{npc.attributes.get('STR', '?')} DEX:{npc.attributes.get('DEX', '?')}"
+            lines.append(f"• {npc.name} ({attrs_brief})")
+        return ("\n".join(lines), False)
+
+    async def _npc_delete(self, args: str, channel_id: str) -> Tuple[str, bool]:
+        """删除 NPC"""
+        name = args.strip()
+        if not name:
+            return ("格式: `.npc del <名称>`", False)
+
+        if await self.npc_manager.delete(channel_id, name):
+            return (f"已删除 NPC: **{name}**", False)
+        return (f"未找到 NPC: {name}", False)
+
+    def _npc_show(self, npc) -> Tuple[str, bool]:
+        """显示 NPC 信息"""
+        attrs = " | ".join(f"{k}:{v}" for k, v in npc.attributes.items())
+        skills = " | ".join(f"{k}:{v}" for k, v in npc.skills.items())
+        return (
+            f"**{npc.name}**\n"
+            f"HP: {npc.hp}/{npc.max_hp} | MP: {npc.mp}/{npc.max_mp}\n"
+            f"属性: {attrs}\n"
+            f"技能: {skills}",
+            False,
+        )
+
+    async def _npc_ra(self, npc, args: str, user_id: str) -> Tuple[str, bool]:
+        """NPC 技能检定: .npc <name> ra <技能> [r/p]"""
+        args = args.strip()
+        if not args:
+            return ("格式: `.npc <名称> ra <技能>`", False)
+
+        # 解析奖励骰/惩罚骰和技能
+        bonus, penalty, skill_name, skill_value = self._parse_ra_compact(args)
+
+        if not skill_name:
+            return ("请指定技能名称", False)
+
+        # 如果没有指定值，从 NPC 获取
+        if skill_value is None:
+            skill_value = npc.get_skill(skill_name)
+            if skill_value is None:
+                return (f"NPC **{npc.name}** 没有技能: {skill_name}", False)
+
+        # 执行检定
+        rule_settings = await self.db.get_user_rule(user_id)
+        rule = get_rule(
+            rule_settings["rule"],
+            rule_settings["critical"],
+            rule_settings["fumble"],
+        )
+
+        if bonus > 0 or penalty > 0:
+            roll_result = DiceRoller.roll_d100_with_bonus(bonus, penalty)
+            roll = roll_result.final
+            roll_detail = str(roll_result)
+        else:
+            roll = DiceRoller.roll_d100()
+            roll_detail = f"D100={roll}"
+
+        result = rule.check(roll, skill_value)
+
+        return (
+            f"**{npc.name}** 的 **{skill_name}** 检定 ({rule.name})\n{roll_detail}/{skill_value}\n{result}",
+            False,
+        )
+
+    async def _npc_ad(
+        self, npc, args: str, channel_id: str, user_name: str
+    ) -> Tuple[str, bool]:
+        """NPC 对抗检定: .npc <name> ad @用户 <技能1> [技能2] [r/p]"""
+        import re
+
+        args = args.strip()
+        if not args:
+            return (
+                "格式: `.npc <名称> ad @用户 <技能> [r/p]`\n"
+                "示例: `.npc 守卫 ad @张三 斗殴 闪避 r1 p1`",
+                False,
+            )
+
+        # 解析 @用户
+        match = re.match(r"\(met\)(\d+)\(met\)\s*(.+)", args)
+        if not match:
+            return ("格式: `.npc <名称> ad @用户 <技能>`\n请 @ 一个用户", False)
+
+        target_id = match.group(1)
+        rest_part = match.group(2).strip()
+
+        if not rest_part:
+            return ("请指定技能名称", False)
+
+        # 解析参数
+        parts = rest_part.split()
+        npc_skill = None
+        target_skill = None
+        npc_bonus, npc_penalty = 0, 0
+        target_bonus, target_penalty = 0, 0
+
+        skills = []
+        bp_list = []
+
+        for part in parts:
+            bp = self._parse_bonus_penalty(part)
+            if bp:
+                bp_list.append(bp)
+            else:
+                skills.append(part)
+
+        if len(skills) == 0:
+            return ("请指定技能名称", False)
+        elif len(skills) == 1:
+            npc_skill = skills[0]
+            target_skill = skills[0]
+        else:
+            npc_skill = skills[0]
+            target_skill = skills[1]
+
+        # 分配奖励骰/惩罚骰 (第一个给 NPC，第二个给目标)
+        if len(bp_list) >= 1:
+            npc_bonus, npc_penalty = bp_list[0]
+        if len(bp_list) >= 2:
+            target_bonus, target_penalty = bp_list[1]
+
+        # 验证 NPC 有这个技能
+        npc_skill_value = npc.get_skill(npc_skill)
+        if npc_skill_value is None:
+            return (f"NPC **{npc.name}** 没有技能: {npc_skill}", False)
+
+        # 创建对抗检定 (NPC 作为发起者)
+        check = self.check_manager.create_opposed_check(
+            initiator_id=f"npc:{npc.name}:{channel_id}",
+            target_id=target_id,
+            initiator_skill=npc_skill,
+            target_skill=target_skill,
+            channel_id=channel_id,
+            initiator_bonus=npc_bonus,
+            initiator_penalty=npc_penalty,
+            target_bonus=target_bonus,
+            target_penalty=target_penalty,
+        )
+
+        # NPC 立即进行检定
+        from ..dice.rules import SuccessLevel
+
+        rule_settings = await self.db.get_user_rule(target_id)  # 使用目标的规则
+        rule = get_rule(
+            rule_settings["rule"], rule_settings["critical"], rule_settings["fumble"]
+        )
+
+        if npc_bonus > 0 or npc_penalty > 0:
+            roll_result = DiceRoller.roll_d100_with_bonus(npc_bonus, npc_penalty)
+            npc_roll = roll_result.final
+        else:
+            npc_roll = DiceRoller.roll_d100()
+
+        npc_result = rule.check(npc_roll, npc_skill_value)
+
+        level_values = {
+            SuccessLevel.CRITICAL: 4,
+            SuccessLevel.EXTREME: 3,
+            SuccessLevel.HARD: 2,
+            SuccessLevel.REGULAR: 1,
+            SuccessLevel.FAILURE: 0,
+            SuccessLevel.FUMBLE: 0,
+        }
+        npc_level = level_values[npc_result.level]
+
+        # 保存 NPC 结果
+        self.check_manager.set_opposed_result(
+            check.check_id,
+            f"npc:{npc.name}:{channel_id}",
+            npc_roll,
+            npc_skill_value,
+            npc_level,
+        )
+
+        # 构建卡片 (显示 NPC 已完成检定)
+        card = CardBuilder.build_npc_opposed_check_card(
+            check_id=check.check_id,
+            npc_name=npc.name,
+            target_id=target_id,
+            npc_skill=npc_skill,
+            target_skill=target_skill,
+            npc_roll=npc_roll,
+            npc_target=npc_skill_value,
+            npc_level=npc_result.level.value,
+            npc_bp=(npc_bonus, npc_penalty),
+            target_bp=(target_bonus, target_penalty),
+        )
+
+        logger.info(
+            f"NPC 对抗: {npc.name}({npc_skill}) vs {target_id}({target_skill})"
+        )
+        return (card, True)
+
     async def _cmd_help(self, args: str, user_id: str) -> str:
         """帮助命令"""
         return """**COC Dice Bot 帮助**
@@ -1169,6 +1640,14 @@ class MessageHandler:
 `.check sc<成功>/<失败>` - 发起 SAN Check (如 .check sc0/1d6)
 `.ad @用户 <技能>` - 对抗检定 (如 .ad @张三 力量)
 `.ad @用户 <我的技能> <对方技能>` - 不同技能对抗 (如 .ad @张三 斗殴 闪避)
+`.ad npc <NPC名> <技能>` - 向 NPC 发起对抗 (如 .ad npc 守卫 斗殴)
+
+**NPC 命令**
+`.npc create <名称> [模板]` - 创建 NPC (1=普通, 2=困难, 3=极难)
+`.npc <名称> ra <技能>` - NPC 技能检定 (如 .npc 守卫 ra力量)
+`.npc <名称> ad @用户 <技能>` - NPC 对抗检定 (如 .npc 守卫 ad @张三 斗殴 闪避 r1 p1)
+`.npc list` - 列出当前频道 NPC
+`.npc del <名称>` - 删除 NPC
 
 **角色卡命令**
 `.pc create` - 获取在线创建链接

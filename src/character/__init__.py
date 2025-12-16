@@ -2,5 +2,6 @@
 from .models import Character
 from .manager import CharacterManager
 from .importer import CharacterImporter
+from .npc import NPCManager, NPC_TEMPLATES
 
-__all__ = ["Character", "CharacterManager", "CharacterImporter"]
+__all__ = ["Character", "CharacterManager", "CharacterImporter", "NPCManager", "NPC_TEMPLATES"]

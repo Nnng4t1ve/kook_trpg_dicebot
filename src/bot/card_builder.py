@@ -484,3 +484,150 @@ class CardBuilder:
             ],
         }
         return json.dumps([card])
+
+    @staticmethod
+    def build_npc_opposed_check_card(
+        check_id: str,
+        npc_name: str,
+        target_id: str,
+        npc_skill: str,
+        target_skill: str,
+        npc_roll: int,
+        npc_target: int,
+        npc_level: str,
+        npc_bp: tuple = (0, 0),
+        target_bp: tuple = (0, 0),
+    ) -> str:
+        """构建 NPC 对抗检定卡片 (NPC 已完成检定)"""
+
+        def bp_text(bonus: int, penalty: int) -> str:
+            if bonus > 0:
+                return f" 奖励骰×{bonus}"
+            elif penalty > 0:
+                return f" 惩罚骰×{penalty}"
+            return ""
+
+        tgt_bp = bp_text(target_bp[0], target_bp[1])
+
+        if npc_skill == target_skill:
+            title = f"⚔️ {npc_skill} 对抗检定"
+        else:
+            title = f"⚔️ {npc_skill} vs {target_skill} 对抗检定"
+
+        desc = (
+            f"**{npc_name}** (NPC) 向 (met){target_id}(met) 发起对抗\n\n"
+            f"**{npc_name}**: D100={npc_roll}/{npc_target} 【{npc_level}】\n\n"
+            f"(met){target_id}(met) 点击按钮进行 **{target_skill}**{tgt_bp} 检定"
+        )
+
+        card = {
+            "type": "card",
+            "theme": "warning",
+            "size": "lg",
+            "modules": [
+                {
+                    "type": "header",
+                    "text": {"type": "plain-text", "content": title},
+                },
+                {"type": "divider"},
+                {
+                    "type": "section",
+                    "text": {
+                        "type": "kmarkdown",
+                        "content": desc,
+                    },
+                },
+                {
+                    "type": "action-group",
+                    "elements": [
+                        {
+                            "type": "button",
+                            "theme": "primary",
+                            "value": json.dumps(
+                                {
+                                    "action": "opposed_check",
+                                    "check_id": check_id,
+                                }
+                            ),
+                            "click": "return-val",
+                            "text": {"type": "plain-text", "content": "🎲 进行检定"},
+                        }
+                    ],
+                },
+            ],
+        }
+        return json.dumps([card])
+
+    @staticmethod
+    def build_player_vs_npc_opposed_card(
+        check_id: str,
+        player_name: str,
+        player_id: str,
+        npc_name: str,
+        player_skill: str,
+        npc_skill: str,
+        npc_roll: int,
+        npc_target: int,
+        npc_level: str,
+        player_bp: tuple = (0, 0),
+        npc_bp: tuple = (0, 0),
+    ) -> str:
+        """构建玩家 vs NPC 对抗检定卡片 (NPC 已完成检定，等待玩家)"""
+
+        def bp_text(bonus: int, penalty: int) -> str:
+            if bonus > 0:
+                return f" 奖励骰×{bonus}"
+            elif penalty > 0:
+                return f" 惩罚骰×{penalty}"
+            return ""
+
+        player_bp_text = bp_text(player_bp[0], player_bp[1])
+
+        if player_skill == npc_skill:
+            title = f"⚔️ {player_skill} 对抗检定"
+        else:
+            title = f"⚔️ {player_skill} vs {npc_skill} 对抗检定"
+
+        desc = (
+            f"**{player_name}** 向 **{npc_name}** (NPC) 发起对抗\n\n"
+            f"**{npc_name}**: D100={npc_roll}/{npc_target} 【{npc_level}】\n\n"
+            f"(met){player_id}(met) 点击按钮进行 **{player_skill}**{player_bp_text} 检定"
+        )
+
+        card = {
+            "type": "card",
+            "theme": "warning",
+            "size": "lg",
+            "modules": [
+                {
+                    "type": "header",
+                    "text": {"type": "plain-text", "content": title},
+                },
+                {"type": "divider"},
+                {
+                    "type": "section",
+                    "text": {
+                        "type": "kmarkdown",
+                        "content": desc,
+                    },
+                },
+                {
+                    "type": "action-group",
+                    "elements": [
+                        {
+                            "type": "button",
+                            "theme": "primary",
+                            "value": json.dumps(
+                                {
+                                    "action": "opposed_check",
+                                    "check_id": check_id,
+                                }
+                            ),
+                            "click": "return-val",
+                            "text": {"type": "plain-text", "content": "🎲 进行检定"},
+                        }
+                    ],
+                },
+            ],
+        }
+        return json.dumps([card])
