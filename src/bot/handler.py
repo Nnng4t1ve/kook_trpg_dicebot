@@ -168,7 +168,7 @@ class MessageHandler:
         """执行命令，返回 (响应内容, 是否为卡片消息)"""
         # 支持紧凑格式的命令列表（可以不带空格）
         # 按长度降序排列，优先匹配长的命令
-        compact_commands = ["rd", "rc", "ra", "r"]
+        compact_commands = ["rd", "rc", "ra", "sc", "r"]
         
         # 先尝试空格分隔
         parts = cmd.split(maxsplit=1)
@@ -204,6 +204,7 @@ class MessageHandler:
             "rd": self._cmd_roll,  # .rd 也支持骰点
             "ra": self._cmd_roll_attribute,
             "rc": self._cmd_roll_check,
+            "sc": self._cmd_san_check,
             "rule": self._cmd_rule,
             "help": self._cmd_help,
         }
@@ -529,6 +530,89 @@ class MessageHandler:
             return f"已删除角色: **{name}**"
         return f"未找到角色: {name}"
 
+    async def _cmd_san_check(self, args: str, user_id: str) -> str:
+        """SAN Check: .sc 0/1d6, .sc1/1d10, .sc 1d4/2d6"""
+        from ..data.madness import roll_temporary_madness
+
+        args = args.strip()
+        if not args:
+            return "格式: .sc <成功损失>/<失败损失>\n示例: .sc 0/1d6, .sc 1/1d4+1, .sc 1d4/2d6"
+
+        # 解析成功/失败损失表达式
+        if "/" not in args:
+            return "格式错误，需要用 / 分隔成功和失败的损失值\n示例: .sc 0/1d6"
+
+        success_expr, fail_expr = args.split("/", 1)
+        success_expr = success_expr.strip()
+        fail_expr = fail_expr.strip()
+
+        # 获取角色卡
+        char = await self.char_manager.get_active(user_id)
+        if not char:
+            return "请先导入角色卡"
+
+        current_san = char.san
+        if current_san <= 0:
+            return f"**{char.name}** 的 SAN 值已经为 0，无法进行 SAN Check"
+
+        # 进行 SAN 检定 (d100 <= san 为成功)
+        roll = DiceRoller.roll_d100()
+        is_success = roll <= current_san
+
+        # 计算损失
+        loss_expr = success_expr if is_success else fail_expr
+        loss = self._calc_san_loss(loss_expr)
+
+        if loss is None:
+            return f"无法解析损失表达式: {loss_expr}"
+
+        # 更新 SAN 值
+        new_san = max(0, current_san - loss)
+        char.san = new_san
+        await self.char_manager.add(char)  # 保存更新
+
+        # 构建结果
+        result_text = "成功" if is_success else "失败"
+        lines = [
+            f"**{char.name}** 的 SAN Check",
+            f"D100={roll}/{current_san} [{result_text}]",
+            f"损失: {loss_expr} = {loss}",
+            f"SAN: {current_san} → **{new_san}**",
+        ]
+
+        # 检查是否触发临时疯狂 (单次损失 >= 5)
+        if loss >= 5:
+            madness = roll_temporary_madness()
+            lines.append("")
+            lines.append(f"⚠️ **触发临时疯狂！** (单次损失≥5)")
+            lines.append(f"🎲 症状骰点: 1D10={madness['roll']}")
+            lines.append(f"**{madness['name']}** - 持续 {madness['duration']}")
+            lines.append(f"_{madness['description']}_")
+
+        # 检查是否陷入永久疯狂 (SAN 归零)
+        if new_san == 0:
+            lines.append("")
+            lines.append("💀 **SAN 值归零，陷入永久疯狂！**")
+
+        return "\n".join(lines)
+
+    def _calc_san_loss(self, expr: str) -> int | None:
+        """计算 SAN 损失值，支持数字或骰点表达式"""
+        expr = expr.strip()
+
+        # 纯数字
+        if expr.isdigit():
+            return int(expr)
+
+        # 骰点表达式
+        expr = self._normalize_dice_expr(expr)
+        parsed = DiceParser.parse(expr)
+        if parsed:
+            result = DiceRoller.roll(parsed)
+            return max(0, result.total)  # 损失不能为负
+
+        return None
+
     async def _cmd_rule(self, args: str, user_id: str) -> str:
         """规则命令: .rule <子命令>"""
         parts = args.split()
@@ -607,6 +691,7 @@ class MessageHandler:
 `.ra r2 侦查` - 带奖励骰的技能检定
 `.ra p1 聆听 60` - 带惩罚骰的指定值检定
 `.rc <技能名> <值>` - 指定值检定 (同 .ra 技能 值)
+`.sc <成功>/<失败>` - SAN Check (如 .sc0/1d6, .sc1d4/2d6)
 
 **KP 命令**
 `.check <技能名> [描述]` - 发起检定 (玩家点击按钮骰点)
