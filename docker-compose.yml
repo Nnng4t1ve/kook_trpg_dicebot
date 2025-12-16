@@ -5,7 +5,7 @@ version: '3.8'
 services:
   bot:
     build: .
-    container_name: coc-dice-bot
+    container_name: coc-dice-bot-v1
     restart: unless-stopped
     ports:
       - "11021:11021"
