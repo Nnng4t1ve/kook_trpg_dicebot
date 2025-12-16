@@ -287,7 +287,7 @@ class MessageHandler:
         args = parts[1] if len(parts) > 1 else ""
         
         # 如果命令不在已知列表中，尝试紧凑格式解析
-        all_commands = ["r", "rd", "ra", "rc", "rule", "help", "check", "pc", "npc", "ad"]
+        all_commands = ["r", "rd", "ra", "rc", "rule", "help", "check", "pc", "npc", "ad", "ri"]
         if command not in all_commands:
             # 尝试匹配紧凑格式命令前缀
             cmd_lower = cmd.lower()
@@ -316,6 +316,10 @@ class MessageHandler:
         if command == "pc":
             return await self._cmd_character(args, user_id)
         
+        # 需要 channel_id 的命令
+        if command == "ri":
+            return await self._cmd_initiative(args, user_id, channel_id, user_name)
+
         handlers = {
             "r": self._cmd_roll,
             "rd": self._cmd_roll,  # .rd 也支持骰点
@@ -1620,6 +1624,71 @@ class MessageHandler:
         )
         return (card, True)
 
+    async def _cmd_initiative(
+        self, args: str, user_id: str, channel_id: str, user_name: str
+    ) -> Tuple[str, bool]:
+        """先攻顺序: .ri @用户1 @用户2 npc 守卫 怪物"""
+        import re
+
+        args = args.strip()
+        if not args:
+            return (
+                "格式: `.ri @用户1 @用户2 npc <NPC名1> <NPC名2> ...`\n"
+                "示例: `.ri @张三 @李四 npc 守卫 怪物`\n"
+                "根据 DEX 从大到小排序生成先攻顺序表",
+                False,
+            )
+
+        # 解析参与者列表
+        participants = []  # [(name, dex, type)]
+        
+        # 提取所有 @用户 (KOOK 格式: (met)用户ID(met))
+        user_mentions = re.findall(r"\(met\)(\d+)\(met\)", args)
+        
+        # 移除 @用户 后剩余的部分用于解析 NPC
+        remaining = re.sub(r"\(met\)\d+\(met\)", "", args).strip()
+        
+        # 处理玩家
+        for mentioned_user_id in user_mentions:
+            char = await self.char_manager.get_active(mentioned_user_id)
+            if char:
+                dex = char.get_skill("DEX") or char.attributes.get("DEX", 0)
+                participants.append((char.name, dex, "player", mentioned_user_id))
+            else:
+                participants.append((f"(met){mentioned_user_id}(met)", 0, "player", mentioned_user_id))
+        
+        # 解析 NPC 名称
+        # 格式: npc name1 name2 或直接 name1 name2 (如果前面有 npc 关键字)
+        npc_names = []
+        if remaining:
+            # 检查是否以 npc 开头
+            if remaining.lower().startswith("npc"):
+                remaining = remaining[3:].strip()
+            
+            # 剩余部分按空格分割作为 NPC 名称
+            if remaining:
+                npc_names = remaining.split()
+        
+        # 处理 NPC
+        for npc_name in npc_names:
+            npc = await self.npc_manager.get(channel_id, npc_name)
+            if npc:
+                dex = npc.attributes.get("DEX", 0)
+                participants.append((npc.name, dex, "npc", None))
+            else:
+                # NPC 不存在，提示
+                participants.append((f"{npc_name} (未找到)", 0, "unknown", None))
+        
+        if not participants:
+            return ("未找到任何参与者，请 @ 用户或指定 NPC 名称", False)
+        
+        # 按 DEX 从大到小排序
+        participants.sort(key=lambda x: x[1], reverse=True)
+        
+        # 构建先攻顺序表
+        card = CardBuilder.build_initiative_card(participants)
+        return (card, True)
+
     async def _cmd_help(self, args: str, user_id: str) -> str:
         """帮助命令"""
         return """**COC Dice Bot 帮助**
@@ -1641,6 +1710,7 @@ class MessageHandler:
 `.ad @用户 <技能>` - 对抗检定 (如 .ad @张三 力量)
 `.ad @用户 <我的技能> <对方技能>` - 不同技能对抗 (如 .ad @张三 斗殴 闪避)
 `.ad npc <NPC名> <技能>` - 向 NPC 发起对抗 (如 .ad npc 守卫 斗殴)
+`.ri @用户1 @用户2 npc <NPC名>` - 先攻顺序表 (按 DEX 排序)
 
 **NPC 命令**
 `.npc create <名称> [模板]` - 创建 NPC (1=普通, 2=困难, 3=极难)

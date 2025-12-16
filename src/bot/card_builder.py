@@ -631,3 +631,57 @@ class CardBuilder:
             ],
         }
         return json.dumps([card])
+
+    @staticmethod
+    def build_initiative_card(participants: List[tuple]) -> str:
+        """
+        构建先攻顺序卡片
+        
+        Args:
+            participants: [(name, dex, type, user_id), ...] 已按 DEX 排序
+        """
+        # 构建顺序列表
+        lines = []
+        for i, (name, dex, p_type, user_id) in enumerate(participants, 1):
+            if p_type == "npc":
+                lines.append(f"**{i}.** {name} (NPC) - DEX: **{dex}**")
+            elif p_type == "unknown":
+                lines.append(f"**{i}.** {name} - DEX: **?**")
+            else:
+                # 玩家
+                if user_id:
+                    lines.append(f"**{i}.** {name} (met){user_id}(met) - DEX: **{dex}**")
+                else:
+                    lines.append(f"**{i}.** {name} - DEX: **{dex}**")
+        
+        content = "\n".join(lines)
+        
+        card = {
+            "type": "card",
+            "theme": "info",
+            "size": "lg",
+            "modules": [
+                {
+                    "type": "header",
+                    "text": {"type": "plain-text", "content": "⚡ 先攻顺序表"},
+                },
+                {"type": "divider"},
+                {
+                    "type": "section",
+                    "text": {
+                        "type": "kmarkdown",
+                        "content": content,
+                    },
+                },
+                {
+                    "type": "context",
+                    "elements": [
+                        {
+                            "type": "kmarkdown",
+                            "content": "按 DEX 从高到低排序",
+                        }
+                    ],
+                },
+            ],
+        }
+        return json.dumps([card])
