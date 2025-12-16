@@ -1859,12 +1859,12 @@ class MessageHandler:
             max_hp = npc.max_hp
             target_name = npc.name
 
-            # 检查是否需要体质检定 (伤害 >= 最大HP的一半)
-            if damage >= max_hp // 2 and npc.hp > 0:
-                need_con_check = True
-
             npc.hp = max(0, old_hp - damage)
             await self.db.save_npc(check.channel_id, npc)
+
+            # 检查是否需要体质检定 (伤害 >= 最大HP的一半 且 受伤后HP不为0)
+            if damage >= max_hp // 2 and npc.hp > 0:
+                need_con_check = True
 
             status_level, status_desc = get_hp_status(npc.hp, npc.max_hp)
             hp_bar = get_hp_bar(npc.hp, npc.max_hp)
@@ -1891,12 +1891,12 @@ class MessageHandler:
             max_hp = char.max_hp
             target_name = char.name
 
-            # 检查是否需要体质检定 (伤害 >= 最大HP的一半)
-            if damage >= max_hp // 2 and char.hp > 0:
-                need_con_check = True
-
             char.hp = max(0, old_hp - damage)
             await self.char_manager.add(char)
+
+            # 检查是否需要体质检定 (伤害 >= 最大HP的一半 且 受伤后HP不为0)
+            if damage >= max_hp // 2 and char.hp > 0:
+                need_con_check = True
 
             status_level, status_desc = get_hp_status(char.hp, char.max_hp)
             hp_bar = get_hp_bar(char.hp, char.max_hp)
