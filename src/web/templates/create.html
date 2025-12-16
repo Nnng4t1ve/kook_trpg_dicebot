@@ -554,8 +554,17 @@
                 // 检查是否有自定义名称
                 const customNameInput = row.querySelector('.custom-name');
                 if (customNameInput && customNameInput.value.trim()) {
-                    // 格式: "技能名:自定义部分"
-                    skillName = skillName + customNameInput.value.trim();
+                    // 自定义技能：只用自定义部分作为技能名
+                    // 例如 "格斗:" + "斗殴" -> "斗殴"
+                    skillName = customNameInput.value.trim();
+                } else {
+                    // 非自定义技能：去掉前缀中的冒号部分
+                    // 例如 "格斗：斗殴" -> "斗殴"，"侦查" -> "侦查"
+                    if (skillName.includes('：')) {
+                        skillName = skillName.split('：').pop();
+                    } else if (skillName.includes(':')) {
+                        skillName = skillName.split(':').pop();
+                    }
                 }
 
                 // 保存所有有值的技能，跳过未填写自定义名称的可自定义技能
