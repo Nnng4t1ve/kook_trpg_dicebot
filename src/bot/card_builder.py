@@ -200,3 +200,52 @@ class CardBuilder:
             ]
         }
         return json.dumps([card])
+
+    @staticmethod
+    def build_grow_character_card(char_name: str, skills: List[str]) -> str:
+        """构建角色成长的交互卡片"""
+        skills_text = "、".join(skills)
+        card = {
+            "type": "card",
+            "theme": "success",
+            "size": "lg",
+            "modules": [
+                {
+                    "type": "header",
+                    "text": {
+                        "type": "plain-text",
+                        "content": f"📈 {char_name} 技能成长"
+                    }
+                },
+                {
+                    "type": "divider"
+                },
+                {
+                    "type": "section",
+                    "text": {
+                        "type": "kmarkdown",
+                        "content": f"可成长技能: **{skills_text}**\n\n点击下方按钮获取成长链接\n链接将通过**私信**发送给你"
+                    }
+                },
+                {
+                    "type": "action-group",
+                    "elements": [
+                        {
+                            "type": "button",
+                            "theme": "primary",
+                            "value": json.dumps({
+                                "action": "grow_character",
+                                "char_name": char_name,
+                                "skills": skills
+                            }),
+                            "click": "return-val",
+                            "text": {
+                                "type": "plain-text",
+                                "content": "🎯 获取成长链接"
+                            }
+                        }
+                    ]
+                }
+            ]
+        }
+        return json.dumps([card])

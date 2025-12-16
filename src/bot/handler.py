@@ -96,6 +96,8 @@ class MessageHandler:
             )
         elif action == "create_character":
             await self._handle_create_character_button(user_id)
+        elif action == "grow_character":
+            await self._handle_grow_character_button(user_id, value)
     
     async def _handle_check_button(
         self, value: dict, user_id: str, target_id: str, user_name: str
@@ -432,7 +434,7 @@ class MessageHandler:
         elif sub_cmd == "create":
             return await self._pc_create_link(user_id)  # 返回卡片
         elif sub_cmd == "grow":
-            return (await self._pc_grow(sub_args, user_id), False)
+            return await self._pc_grow(sub_args, user_id)  # 返回 (str, bool)
         elif sub_cmd == "list":
             return (await self._pc_list(user_id), False)
         elif sub_cmd == "switch":
@@ -449,14 +451,14 @@ class MessageHandler:
         card = CardBuilder.build_create_character_card()
         return (card, True)
 
-    async def _pc_grow(self, args: str, user_id: str) -> str:
+    async def _pc_grow(self, args: str, user_id: str) -> Tuple[str, bool]:
         """角色卡成长: .pc grow <角色名> <技能1> <技能2> ..."""
         if not self.web_app:
-            return "Web 服务未启用"
+            return ("Web 服务未启用", False)
 
         parts = args.split()
         if len(parts) < 2:
-            return "格式: .pc grow <角色名> <技能1> <技能2> ...\n示例: .pc grow 张三 侦查 聆听 图书馆"
+            return ("格式: .pc grow <角色名> <技能1> <技能2> ...\n示例: .pc grow 张三 侦查 聆听 图书馆", False)
 
         char_name = parts[0]
         skill_names = parts[1:]
@@ -464,7 +466,7 @@ class MessageHandler:
         # 检查角色是否存在
         char = await self.char_manager.get(user_id, char_name)
         if not char:
-            return f"未找到角色: {char_name}"
+            return (f"未找到角色: {char_name}", False)
 
         # 验证技能是否存在于角色卡中
         valid_skills = []
@@ -482,20 +484,11 @@ class MessageHandler:
                     invalid_skills.append(skill)
 
         if not valid_skills:
-            return f"角色 {char_name} 没有这些技能: {', '.join(skill_names)}"
+            return (f"角色 {char_name} 没有这些技能: {', '.join(skill_names)}", False)
 
-        # 生成成长链接
-        from ..config import settings
-        token = self.web_app.generate_grow_token(user_id, char_name, valid_skills)
-        url = f"{settings.web_base_url}/grow/{token}"
-
-        msg_lines = [f"📈 **{char_name}** 的技能成长链接", "", url, ""]
-        msg_lines.append(f"可成长技能: {', '.join(valid_skills)}")
-        if invalid_skills:
-            msg_lines.append(f"⚠️ 未找到: {', '.join(invalid_skills)}")
-        msg_lines.append("\n⏰ 链接有效期 10 分钟")
-
-        return "\n".join(msg_lines)
+        # 返回卡片消息
+        card = CardBuilder.build_grow_character_card(char_name, valid_skills)
+        return (card, True)
 
     async def _handle_create_character_button(self, user_id: str):
         """处理创建角色卡按钮点击 - 私聊发送链接"""
@@ -511,7 +504,31 @@ class MessageHandler:
         
         msg = f"🎲 **你的专属角色卡创建链接**\n\n{url}\n\n⏰ 链接有效期 10 分钟，仅限本人使用"
         await self.client.send_direct_message(user_id, msg)
-    
+
+    async def _handle_grow_character_button(self, user_id: str, value: dict):
+        """处理成长角色卡按钮点击 - 私聊发送链接"""
+        if not self.web_app:
+            await self.client.send_direct_message(user_id, "Web 服务未启用")
+            return
+
+        char_name = value.get("char_name")
+        skills = value.get("skills", [])
+
+        if not char_name or not skills:
+            await self.client.send_direct_message(user_id, "参数错误")
+            return
+
+        from ..config import settings
+
+        token = self.web_app.generate_grow_token(user_id, char_name, skills)
+        url = f"{settings.web_base_url}/grow/{token}"
+
+        logger.info(f"生成角色成长链接: user={user_id}, char={char_name}, token={token}")
+
+        skills_text = "、".join(skills)
+        msg = f"📈 **{char_name}** 的技能成长链接\n\n{url}\n\n可成长技能: {skills_text}\n⏰ 链接有效期 10 分钟"
+        await self.client.send_direct_message(user_id, msg)
+
     async def _pc_new(self, json_str: str, user_id: str) -> str:
         """导入角色卡"""
         if not json_str:
