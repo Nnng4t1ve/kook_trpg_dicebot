@@ -476,10 +476,12 @@
         }
 
         // 点数系统
-        let totalJobPoints = 0;
-        let totalHobbyPoints = 100;
+        let totalJobPoints = null;  // null 表示未选择属性，不限制
+        let totalHobbyPoints = null;  // null 表示未选择属性，不限制
         let usedJobPoints = 0;
         let usedHobbyPoints = 0;
+        let lastJobRemain = null;  // 用于防止重复弹出提示
+        let lastHobbyRemain = null;
 
         // Toast 提示
         function showToast(message, type = 'warning') {
@@ -496,40 +498,51 @@
 
         // 更新点数显示
         function updatePointsDisplay() {
-            const jobRemain = totalJobPoints - usedJobPoints;
-            const hobbyRemain = totalHobbyPoints - usedHobbyPoints;
-            
             const jobEl = document.getElementById('jobPointsRemain');
             const hobbyEl = document.getElementById('hobbyPointsRemain');
             const submitBtn = document.getElementById('submitBtn');
-            
-            jobEl.textContent = jobRemain;
-            hobbyEl.textContent = hobbyRemain;
             
             // 样式更新
             jobEl.classList.remove('zero', 'negative');
             hobbyEl.classList.remove('zero', 'negative');
             
-            if (jobRemain === 0) {
-                jobEl.classList.add('zero');
-                showToast('职业点数已用完！', 'success');
-            } else if (jobRemain < 0) {
-                jobEl.classList.add('negative');
+            // 职业点数处理
+            if (totalJobPoints === null) {
+                // 未选择属性，显示 "--"，不限制
+                jobEl.textContent = '--';
+            } else {
+                const jobRemain = totalJobPoints - usedJobPoints;
+                jobEl.textContent = jobRemain;
+                
+                if (jobRemain === 0) {
+                    jobEl.classList.add('zero');
+                    if (lastJobRemain !== 0) showToast('职业点数已用完！', 'success');
+                } else if (jobRemain < 0) {
+                    jobEl.classList.add('negative');
+                }
+                lastJobRemain = jobRemain;
             }
             
-            if (hobbyRemain === 0) {
-                hobbyEl.classList.add('zero');
-                showToast('兴趣点数已用完！', 'success');
-            } else if (hobbyRemain < 0) {
-                hobbyEl.classList.add('negative');
+            // 兴趣点数处理
+            if (totalHobbyPoints === null) {
+                // 未选择属性，显示 "--"，不限制
+                hobbyEl.textContent = '--';
+            } else {
+                const hobbyRemain = totalHobbyPoints - usedHobbyPoints;
+                hobbyEl.textContent = hobbyRemain;
+                
+                if (hobbyRemain === 0) {
+                    hobbyEl.classList.add('zero');
+                    if (lastHobbyRemain !== 0) showToast('兴趣点数已用完！', 'success');
+                } else if (hobbyRemain < 0) {
+                    hobbyEl.classList.add('negative');
+                }
+                lastHobbyRemain = hobbyRemain;
             }
             
-            // 检查是否选择了属性
-            const hasSelectedAttr = document.querySelectorAll('.attr-checkbox:checked').length > 0;
-            
-            // 如果选择了属性且点数为负，禁用创建按钮；未选择属性则不限制职业点数
-            const jobOverspent = hasSelectedAttr && jobRemain < 0;
-            const hobbyOverspent = hobbyRemain < 0;
+            // 检查是否可以创建
+            const jobOverspent = totalJobPoints !== null && (totalJobPoints - usedJobPoints) < 0;
+            const hobbyOverspent = totalHobbyPoints !== null && (totalHobbyPoints - usedHobbyPoints) < 0;
             
             if (jobOverspent || hobbyOverspent) {
                 submitBtn.disabled = true;
@@ -547,8 +560,9 @@
             
             let formula = '';
             if (checkedAttrs.length === 0) {
-                totalJobPoints = 0;
-                formula = '未选择属性';
+                totalJobPoints = null;  // 未选择属性，不限制
+                lastJobRemain = null;   // 重置提示状态
+                formula = '未选择属性（不限制）';
             } else if (checkedAttrs.length === 1) {
                 const val = parseInt(document.getElementById(checkedAttrs[0]).value) || 0;
                 totalJobPoints = val * 4;
@@ -561,13 +575,20 @@
             }
             
             document.getElementById('jobFormula').textContent = formula;
-            updatePointsDisplay();
+            // 同步更新兴趣点数（因为兴趣点数也依赖是否选择了属性）
+            calculateHobbyPoints();
         }
 
-        // 计算兴趣点数
+        // 计算兴趣点数（只有选择了属性才计算）
         function calculateHobbyPoints() {
-            const int = parseInt(document.getElementById('int').value) || 0;
-            totalHobbyPoints = int * 2;
+            const hasSelectedAttr = document.querySelectorAll('.attr-checkbox:checked').length > 0;
+            if (hasSelectedAttr) {
+                const int = parseInt(document.getElementById('int').value) || 0;
+                totalHobbyPoints = int * 2;
+            } else {
+                totalHobbyPoints = null;
+                lastHobbyRemain = null;
+            }
             updatePointsDisplay();
         }
 
