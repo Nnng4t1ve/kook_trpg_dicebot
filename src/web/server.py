@@ -88,6 +88,10 @@ def create_app(db: Database, char_manager: CharacterManager) -> FastAPI:
                     except ValueError:
                         pass
 
+        # 确保克苏鲁神话技能存在且默认为0（不可分配点数）
+        if "克苏鲁神话" not in skills_dict:
+            skills_dict["克苏鲁神话"] = 0
+
         # 创建角色
         char = Character(
             name=name,

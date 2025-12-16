@@ -800,3 +800,99 @@ class CardBuilder:
             ],
         }
         return json.dumps([card])
+
+    @staticmethod
+    def build_con_check_card(
+        check_id: str,
+        target_name: str,
+        target_id: str,
+        damage: int,
+        max_hp: int,
+    ) -> str:
+        """构建体质检定卡片 (重伤昏迷检定)"""
+        card = {
+            "type": "card",
+            "theme": "warning",
+            "size": "lg",
+            "modules": [
+                {
+                    "type": "header",
+                    "text": {"type": "plain-text", "content": "💫 重伤昏迷检定"},
+                },
+                {"type": "divider"},
+                {
+                    "type": "section",
+                    "text": {
+                        "type": "kmarkdown",
+                        "content": (
+                            f"**{target_name}** 受到了 **{damage}** 点伤害 (≥ HP上限的一半: {max_hp // 2})\n"
+                            f"需要进行 **体质(CON)** 检定\n"
+                            f"成功: 保持清醒 | 失败: 陷入昏迷"
+                        ),
+                    },
+                },
+                {
+                    "type": "action-group",
+                    "elements": [
+                        {
+                            "type": "button",
+                            "theme": "warning",
+                            "value": json.dumps(
+                                {
+                                    "action": "con_check",
+                                    "check_id": check_id,
+                                }
+                            ),
+                            "click": "return-val",
+                            "text": {"type": "plain-text", "content": "🎲 进行体质检定"},
+                        }
+                    ],
+                },
+                {
+                    "type": "context",
+                    "elements": [
+                        {
+                            "type": "kmarkdown",
+                            "content": f"(met){target_id}(met) 点击按钮进行检定",
+                        }
+                    ],
+                },
+            ],
+        }
+        return json.dumps([card])
+
+    @staticmethod
+    def build_con_check_result_card(
+        target_name: str,
+        roll: int,
+        con_value: int,
+        is_success: bool,
+        is_npc: bool = False,
+    ) -> str:
+        """构建体质检定结果卡片"""
+        theme = "success" if is_success else "danger"
+        result_text = "成功" if is_success else "失败"
+        status = "保持清醒" if is_success else "陷入昏迷"
+        emoji = "✅" if is_success else "💫"
+
+        npc_tag = " (NPC)" if is_npc else ""
+
+        card = {
+            "type": "card",
+            "theme": theme,
+            "size": "lg",
+            "modules": [
+                {
+                    "type": "section",
+                    "text": {
+                        "type": "kmarkdown",
+                        "content": (
+                            f"{emoji} **{target_name}**{npc_tag} 的体质检定\n"
+                            f"D100 = **{roll}** / {con_value} 【{result_text}】\n"
+                            f"结果: **{status}**"
+                        ),
+                    },
+                },
+            ],
+        }
+        return json.dumps([card])

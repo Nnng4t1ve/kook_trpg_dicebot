@@ -107,6 +107,8 @@ class MessageHandler:
             await self._handle_opposed_check_button(value, user_id, target_id, user_name)
         elif action == "confirm_damage":
             await self._handle_damage_button(value, user_id, target_id, user_name)
+        elif action == "con_check":
+            await self._handle_con_check_button(value, user_id, target_id, user_name)
 
     async def _handle_san_check_button(
         self, value: dict, user_id: str, target_id: str, user_name: str
@@ -289,7 +291,7 @@ class MessageHandler:
         args = parts[1] if len(parts) > 1 else ""
         
         # 如果命令不在已知列表中，尝试紧凑格式解析
-        all_commands = ["r", "rd", "ra", "rc", "rule", "help", "check", "pc", "npc", "ad", "ri", "dmg"]
+        all_commands = ["r", "rd", "ra", "rc", "rule", "help", "check", "pc", "npc", "ad", "ri", "dmg", "hp", "mp", "san"]
         if command not in all_commands:
             # 尝试匹配紧凑格式命令前缀
             cmd_lower = cmd.lower()
@@ -334,8 +336,11 @@ class MessageHandler:
             "rule": self._cmd_rule,
             "set": self._cmd_set_rule,
             "help": self._cmd_help,
+            "hp": self._cmd_hp,
+            "mp": self._cmd_mp,
+            "san": self._cmd_san,
         }
-        
+
         handler = handlers.get(command)
         if handler:
             result = await handler(args, user_id)
@@ -697,18 +702,21 @@ class MessageHandler:
         char = await self.char_manager.get_active(user_id)
         if not char:
             return "当前没有选中的角色卡"
-        
+
+        max_san = self._calc_max_san(char)
         lines = [f"**{char.name}**"]
-        lines.append(f"HP: {char.hp}/{char.max_hp} | MP: {char.mp}/{char.max_mp} | SAN: {char.san}")
-        
+        lines.append(
+            f"HP: {char.hp}/{char.max_hp} | MP: {char.mp}/{char.max_mp} | SAN: {char.san}/{max_san}"
+        )
+
         if char.attributes:
             attrs = " | ".join(f"{k}:{v}" for k, v in char.attributes.items())
             lines.append(f"属性: {attrs}")
-        
+
         if char.skills:
             skills = " | ".join(f"{k}:{v}" for k, v in list(char.skills.items())[:10])
             lines.append(f"技能: {skills}")
-        
+
         return "\n".join(lines)
     
     async def _pc_delete(self, name: str, user_id: str) -> str:
@@ -1834,6 +1842,10 @@ class MessageHandler:
             )
             return
 
+        need_con_check = False
+        target_name = ""
+        max_hp = 0
+
         if check.target_type == "npc":
             # NPC 伤害
             npc = await self.npc_manager.get(check.channel_id, check.target_id)
@@ -1844,6 +1856,13 @@ class MessageHandler:
                 return
 
             old_hp = npc.hp
+            max_hp = npc.max_hp
+            target_name = npc.name
+
+            # 检查是否需要体质检定 (伤害 >= 最大HP的一半)
+            if damage >= max_hp // 2 and npc.hp > 0:
+                need_con_check = True
+
             npc.hp = max(0, old_hp - damage)
             await self.db.save_npc(check.channel_id, npc)
 
@@ -1869,6 +1888,13 @@ class MessageHandler:
                 return
 
             old_hp = char.hp
+            max_hp = char.max_hp
+            target_name = char.name
+
+            # 检查是否需要体质检定 (伤害 >= 最大HP的一半)
+            if damage >= max_hp // 2 and char.hp > 0:
+                need_con_check = True
+
             char.hp = max(0, old_hp - damage)
             await self.char_manager.add(char)
 
@@ -1893,6 +1919,95 @@ class MessageHandler:
         # 发送结果卡片
         await self.client.send_message(channel_id, card, msg_type=10)
 
+        # 如果需要体质检定
+        if need_con_check:
+            if check.target_type == "npc":
+                # NPC 自动进行体质检定
+                await self._do_npc_con_check(
+                    npc, damage, channel_id
+                )
+            else:
+                # 玩家需要点击卡片
+                con_check = self.check_manager.create_con_check(
+                    target_type="player",
+                    target_id=check.target_id,
+                    target_name=target_name,
+                    channel_id=channel_id,
+                    damage=damage,
+                    max_hp=max_hp,
+                )
+                con_card = CardBuilder.build_con_check_card(
+                    check_id=con_check.check_id,
+                    target_name=target_name,
+                    target_id=check.target_id,
+                    damage=damage,
+                    max_hp=max_hp,
+                )
+                await self.client.send_message(channel_id, con_card, msg_type=10)
+
+    async def _do_npc_con_check(self, npc, damage: int, channel_id: str):
+        """NPC 自动进行体质检定"""
+        con_value = npc.attributes.get("CON", 50)
+        roll = DiceRoller.roll_d100()
+        is_success = roll <= con_value
+
+        card = CardBuilder.build_con_check_result_card(
+            target_name=npc.name,
+            roll=roll,
+            con_value=con_value,
+            is_success=is_success,
+            is_npc=True,
+        )
+        await self.client.send_message(channel_id, card, msg_type=10)
+
+    async def _handle_con_check_button(
+        self, value: dict, user_id: str, channel_id: str, user_name: str
+    ):
+        """处理体质检定按钮点击"""
+        check_id = value.get("check_id")
+
+        check = self.check_manager.get_con_check(check_id)
+        if not check:
+            await self.client.send_message(
+                channel_id, f"(met){user_id}(met) 该体质检定已过期", msg_type=9
+            )
+            return
+
+        # 验证是否是目标玩家
+        if user_id != check.target_id:
+            await self.client.send_message(
+                channel_id, f"(met){user_id}(met) 只有 **{check.target_name}** 可以进行此检定", msg_type=9
+            )
+            return
+
+        # 获取角色卡
+        char = await self.char_manager.get_active(user_id)
+        if not char:
+            await self.client.send_message(
+                channel_id, f"(met){user_id}(met) 没有激活的角色卡", msg_type=9
+            )
+            return
+
+        # 获取体质值
+        con_value = char.attributes.get("CON", 50)
+
+        # 进行检定
+        roll = DiceRoller.roll_d100()
+        is_success = roll <= con_value
+
+        # 移除检定
+        self.check_manager.remove_con_check(check_id)
+
+        # 发送结果卡片
+        card = CardBuilder.build_con_check_result_card(
+            target_name=char.name,
+            roll=roll,
+            con_value=con_value,
+            is_success=is_success,
+            is_npc=False,
+        )
+        await self.client.send_message(channel_id, card, msg_type=10)
+
     def _calc_damage(self, expr: str) -> int | None:
         """计算伤害值，支持数字或骰点表达式"""
         expr = expr.strip()
@@ -1909,6 +2024,101 @@ class MessageHandler:
             return max(0, result.total)  # 伤害不能为负
 
         return None
+
+    async def _cmd_hp(self, args: str, user_id: str) -> str:
+        """HP 调整: .hp +5, .hp -3, .hp 10"""
+        return await self._adjust_stat(args, user_id, "hp")
+
+    async def _cmd_mp(self, args: str, user_id: str) -> str:
+        """MP 调整: .mp +5, .mp -3, .mp 10"""
+        return await self._adjust_stat(args, user_id, "mp")
+
+    async def _cmd_san(self, args: str, user_id: str) -> str:
+        """SAN 调整: .san +5, .san -3, .san 10"""
+        return await self._adjust_stat(args, user_id, "san")
+
+    async def _adjust_stat(self, args: str, user_id: str, stat_type: str) -> str:
+        """通用属性调整方法"""
+        args = args.strip()
+
+        # 获取角色卡
+        char = await self.char_manager.get_active(user_id)
+        if not char:
+            return "请先导入角色卡"
+
+        # 无参数时显示当前值
+        if not args:
+            if stat_type == "hp":
+                return f"**{char.name}** HP: {char.hp}/{char.max_hp}"
+            elif stat_type == "mp":
+                return f"**{char.name}** MP: {char.mp}/{char.max_mp}"
+            else:  # san
+                max_san = self._calc_max_san(char)
+                return f"**{char.name}** SAN: {char.san}/{max_san}"
+
+        # 解析调整值
+        try:
+            if args.startswith("+"):
+                delta = int(args[1:])
+            elif args.startswith("-"):
+                delta = -int(args[1:])
+            else:
+                # 直接设置值
+                new_value = int(args)
+                return await self._set_stat(char, stat_type, new_value)
+        except ValueError:
+            return f"无效的数值: {args}"
+
+        # 应用调整
+        return await self._apply_stat_delta(char, stat_type, delta)
+
+    async def _set_stat(self, char, stat_type: str, new_value: int) -> str:
+        """直接设置属性值"""
+        if stat_type == "hp":
+            old_value = char.hp
+            char.hp = max(0, min(new_value, char.max_hp))
+            await self.char_manager.add(char)
+            return f"**{char.name}** HP: {old_value} → **{char.hp}**/{char.max_hp}"
+        elif stat_type == "mp":
+            old_value = char.mp
+            char.mp = max(0, min(new_value, char.max_mp))
+            await self.char_manager.add(char)
+            return f"**{char.name}** MP: {old_value} → **{char.mp}**/{char.max_mp}"
+        else:  # san
+            old_value = char.san
+            max_san = self._calc_max_san(char)
+            char.san = max(0, min(new_value, max_san))
+            await self.char_manager.add(char)
+            return f"**{char.name}** SAN: {old_value} → **{char.san}**/{max_san}"
+
+    async def _apply_stat_delta(self, char, stat_type: str, delta: int) -> str:
+        """应用属性变化"""
+        if stat_type == "hp":
+            old_value = char.hp
+            char.hp = max(0, min(char.hp + delta, char.max_hp))
+            await self.char_manager.add(char)
+            sign = "+" if delta > 0 else ""
+            return f"**{char.name}** HP: {old_value} {sign}{delta} → **{char.hp}**/{char.max_hp}"
+        elif stat_type == "mp":
+            old_value = char.mp
+            char.mp = max(0, min(char.mp + delta, char.max_mp))
+            await self.char_manager.add(char)
+            sign = "+" if delta > 0 else ""
+            return f"**{char.name}** MP: {old_value} {sign}{delta} → **{char.mp}**/{char.max_mp}"
+        else:  # san
+            old_value = char.san
+            max_san = self._calc_max_san(char)
+            char.san = max(0, min(char.san + delta, max_san))
+            await self.char_manager.add(char)
+            sign = "+" if delta > 0 else ""
+            return f"**{char.name}** SAN: {old_value} {sign}{delta} → **{char.san}**/{max_san}"
+
+    def _calc_max_san(self, char) -> int:
+        """计算 SAN 上限: 99 - 克苏鲁神话技能"""
+        cthulhu_mythos = char.skills.get("克苏鲁神话", 0)
+        if cthulhu_mythos == 0:
+            cthulhu_mythos = char.skills.get("CM", 0)
+        return 99 - cthulhu_mythos
 
     async def _cmd_help(self, args: str, user_id: str) -> str:
         """帮助命令"""
@@ -1950,6 +2160,13 @@ class MessageHandler:
 `.pc switch <名称>` - 切换角色卡
 `.pc show` - 显示当前角色
 `.pc del <名称>` - 删除角色卡
+
+**属性调整**
+`.hp` - 查看当前 HP
+`.hp +5` / `.hp -3` - 增减 HP
+`.hp 10` - 设置 HP 为指定值
+`.mp` / `.mp +5` / `.mp -3` - MP 调整 (同上)
+`.san` / `.san +5` / `.san -3` - SAN 调整 (上限=99-克苏鲁神话)
 
 **规则命令**
 `.set` - 查看所有预设规则

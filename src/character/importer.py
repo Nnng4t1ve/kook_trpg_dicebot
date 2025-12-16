@@ -18,11 +18,15 @@ class CharacterImporter:
         # 验证必要字段
         if "name" not in data:
             return None, "缺少必要字段: name"
-        
+
         # 提取属性
         attributes = data.get("attributes", {})
         skills = data.get("skills", {})
-        
+
+        # 确保克苏鲁神话技能存在且默认为0
+        if "克苏鲁神话" not in skills:
+            skills["克苏鲁神话"] = 0
+
         # 计算派生属性
         hp = data.get("hp", 0)
         mp = data.get("mp", 0)
