@@ -52,8 +52,8 @@ async def main():
     await db.connect()
     logger.info("MySQL 数据库连接成功")
     
-    # 初始化角色管理器
-    char_manager = CharacterManager(db)
+    # 初始化角色管理器 (LRU 缓存，最多 500 个角色卡)
+    char_manager = CharacterManager(db, cache_size=500)
     
     # 初始化客户端
     client = KookClient(settings.kook_token, settings.kook_api_base)
@@ -77,6 +77,11 @@ async def main():
         logger.info(f"Web 服务启动: {settings.web_base_url}")
         logger.info("正在连接 KOOK...")
         
+        # 启动定时清理任务
+        handler.check_manager.start_cleanup_task()
+        web_app.start_cleanup_task()
+        logger.info("定时清理任务已启动")
+        
         # 同时运行 Web 服务和 Bot
         await asyncio.gather(
             web_server.serve(),
@@ -85,6 +90,9 @@ async def main():
     except KeyboardInterrupt:
         logger.info("收到退出信号")
     finally:
+        # 停止清理任务
+        handler.check_manager.stop_cleanup_task()
+        web_app.stop_cleanup_task()
         await client.stop()
         await db.close()
         logger.info("Bot 已停止")

@@ -1,4 +1,5 @@
 """Web 服务器"""
+import asyncio
 import time
 from fastapi import FastAPI, Request, Form, HTTPException
 from fastapi.responses import HTMLResponse, RedirectResponse
@@ -24,6 +25,10 @@ def create_app(db: Database, char_manager: CharacterManager) -> FastAPI:
     # 存储临时 token -> (user_id, created_at) 映射
     user_tokens: dict[str, tuple[str, float]] = {}
     TOKEN_EXPIRE_SECONDS = 600  # 10 分钟过期
+    CLEANUP_INTERVAL = 300  # 清理间隔 5 分钟
+    
+    # 清理任务引用
+    cleanup_task = None
     
     def get_user_from_token(token: str) -> str | None:
         """获取 token 对应的 user_id，检查过期"""
@@ -229,8 +234,65 @@ def create_app(db: Database, char_manager: CharacterManager) -> FastAPI:
         logger.info(f"生成成长 token: {token} -> user={user_id}, char={char_name}, skills={skills}")
         return token
 
+    def cleanup_expired_tokens() -> int:
+        """清理过期的 token，返回清理数量"""
+        now = time.time()
+        count = 0
+        
+        # 清理创建 token
+        expired = [k for k, v in user_tokens.items() if now - v[1] > TOKEN_EXPIRE_SECONDS]
+        for k in expired:
+            del user_tokens[k]
+            count += 1
+        
+        # 清理成长 token
+        expired = [k for k, v in grow_tokens.items() if now - v[4] > TOKEN_EXPIRE_SECONDS]
+        for k in expired:
+            del grow_tokens[k]
+            count += 1
+        
+        return count
+    
+    async def periodic_cleanup():
+        """定期清理过期 token"""
+        while True:
+            try:
+                await asyncio.sleep(CLEANUP_INTERVAL)
+                cleaned = cleanup_expired_tokens()
+                if cleaned > 0:
+                    logger.debug(f"清理了 {cleaned} 个过期 token")
+            except asyncio.CancelledError:
+                break
+            except Exception as e:
+                logger.error(f"Token 清理任务出错: {e}")
+    
+    def start_cleanup_task():
+        """启动清理任务"""
+        nonlocal cleanup_task
+        if cleanup_task is None:
+            cleanup_task = asyncio.create_task(periodic_cleanup())
+            logger.info(f"Token 清理任务已启动，间隔 {CLEANUP_INTERVAL} 秒")
+    
+    def stop_cleanup_task():
+        """停止清理任务"""
+        nonlocal cleanup_task
+        if cleanup_task:
+            cleanup_task.cancel()
+            cleanup_task = None
+            logger.info("Token 清理任务已停止")
+    
+    def get_token_stats() -> dict:
+        """获取 token 统计信息"""
+        return {
+            "user_tokens": len(user_tokens),
+            "grow_tokens": len(grow_tokens)
+        }
+
     # 将方法附加到 app
     app.generate_token = generate_token
     app.generate_grow_token = generate_grow_token
+    app.start_cleanup_task = start_cleanup_task
+    app.stop_cleanup_task = stop_cleanup_task
+    app.get_token_stats = get_token_stats
 
     return app

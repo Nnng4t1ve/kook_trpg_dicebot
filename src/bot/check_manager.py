@@ -1,8 +1,10 @@
 """检定管理器 - 管理 KP 发起的检定"""
+import asyncio
 import uuid
 import time
 from dataclasses import dataclass, field
 from typing import Dict, Optional, Set, Tuple
+from loguru import logger
 
 
 @dataclass
@@ -71,9 +73,37 @@ class OpposedCheck:
 class CheckManager:
     """检定管理器"""
 
-    def __init__(self):
+    def __init__(self, cleanup_interval: int = 300):
         self._checks: Dict[str, PendingCheck] = {}
         self._opposed_checks: Dict[str, OpposedCheck] = {}
+        self._cleanup_interval = cleanup_interval  # 清理间隔（秒）
+        self._cleanup_task: Optional[asyncio.Task] = None
+    
+    def start_cleanup_task(self):
+        """启动定时清理任务"""
+        if self._cleanup_task is None:
+            self._cleanup_task = asyncio.create_task(self._periodic_cleanup())
+            logger.info(f"检定清理任务已启动，间隔 {self._cleanup_interval} 秒")
+    
+    def stop_cleanup_task(self):
+        """停止定时清理任务"""
+        if self._cleanup_task:
+            self._cleanup_task.cancel()
+            self._cleanup_task = None
+            logger.info("检定清理任务已停止")
+    
+    async def _periodic_cleanup(self):
+        """定期清理过期检定"""
+        while True:
+            try:
+                await asyncio.sleep(self._cleanup_interval)
+                cleaned = self._cleanup_expired()
+                if cleaned > 0:
+                    logger.debug(f"清理了 {cleaned} 个过期检定")
+            except asyncio.CancelledError:
+                break
+            except Exception as e:
+                logger.error(f"清理任务出错: {e}")
 
     def create_check(
         self,
@@ -177,11 +207,22 @@ class CheckManager:
             return True
         return False
 
-    def _cleanup_expired(self):
-        """清理过期检定"""
+    def _cleanup_expired(self) -> int:
+        """清理过期检定，返回清理数量"""
+        count = 0
         expired = [k for k, v in self._checks.items() if v.is_expired()]
         for k in expired:
             del self._checks[k]
+            count += 1
         expired = [k for k, v in self._opposed_checks.items() if v.is_expired()]
         for k in expired:
             del self._opposed_checks[k]
+            count += 1
+        return count
+    
+    def get_stats(self) -> dict:
+        """获取统计信息"""
+        return {
+            "pending_checks": len(self._checks),
+            "opposed_checks": len(self._opposed_checks)
+        }
