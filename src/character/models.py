@@ -20,14 +20,27 @@ class Character:
     luck: int = 0
     
     def get_skill(self, name: str) -> Optional[int]:
-        """获取技能值，支持属性和技能"""
-        # 先查技能
+        """获取技能值，支持属性和技能，支持别名"""
+        from ..dice.skill_alias import skill_resolver
+        
+        # 解析别名
+        resolved_name = skill_resolver.resolve(name)
+        
+        # 先查技能（原名和解析后的名字都试）
         if name in self.skills:
             return self.skills[name]
+        if resolved_name in self.skills:
+            return self.skills[resolved_name]
+        
         # 再查属性 (大写)
-        upper_name = name.upper()
+        upper_name = resolved_name.upper()
         if upper_name in self.attributes:
             return self.attributes[upper_name]
+        
+        # 原名大写也试一下
+        if name.upper() in self.attributes:
+            return self.attributes[name.upper()]
+        
         return None
     
     def to_dict(self) -> dict:

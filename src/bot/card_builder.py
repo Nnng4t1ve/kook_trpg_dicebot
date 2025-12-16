@@ -156,3 +156,47 @@ class CardBuilder:
         }
         
         return json.dumps([card])
+
+    @staticmethod
+    def build_create_character_card() -> str:
+        """构建创建角色卡的交互卡片"""
+        card = {
+            "type": "card",
+            "theme": "info",
+            "size": "lg",
+            "modules": [
+                {
+                    "type": "header",
+                    "text": {
+                        "type": "plain-text",
+                        "content": "📋 创建角色卡"
+                    }
+                },
+                {
+                    "type": "divider"
+                },
+                {
+                    "type": "section",
+                    "text": {
+                        "type": "kmarkdown",
+                        "content": "点击下方按钮获取专属创建链接\n链接将通过**私信**发送给你，仅限本人使用"
+                    }
+                },
+                {
+                    "type": "action-group",
+                    "elements": [
+                        {
+                            "type": "button",
+                            "theme": "primary",
+                            "value": json.dumps({"action": "create_character"}),
+                            "click": "return-val",
+                            "text": {
+                                "type": "plain-text",
+                                "content": "✨ 获取创建链接"
+                            }
+                        }
+                    ]
+                }
+            ]
+        }
+        return json.dumps([card])

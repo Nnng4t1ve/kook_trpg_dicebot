@@ -86,6 +86,8 @@ class MessageHandler:
             await self._handle_check_button(
                 value, user_id, target_id, user_name
             )
+        elif action == "create_character":
+            await self._handle_create_character_button(user_id)
     
     async def _handle_check_button(
         self, value: dict, user_id: str, target_id: str, user_name: str
@@ -164,12 +166,15 @@ class MessageHandler:
         if command == "check":
             return await self._cmd_kp_check(args, user_id, channel_id, user_name)
         
+        # pc create 需要返回卡片
+        if command == "pc":
+            return await self._cmd_character(args, user_id)
+        
         handlers = {
             "r": self._cmd_roll,
             "rd": self._cmd_roll,  # .rd 也支持骰点
             "ra": self._cmd_roll_attribute,
             "rc": self._cmd_roll_check,
-            "pc": self._cmd_character,
             "rule": self._cmd_rule,
             "help": self._cmd_help,
         }
@@ -235,36 +240,44 @@ class MessageHandler:
         
         return f"**{skill_name}** 检定 ({rule.name})\n{result}"
 
-    async def _cmd_character(self, args: str, user_id: str) -> str:
+    async def _cmd_character(self, args: str, user_id: str) -> Tuple[str, bool]:
         """角色卡命令: .pc <子命令>"""
         parts = args.split(maxsplit=1)
         sub_cmd = parts[0].lower() if parts else "show"
         sub_args = parts[1] if len(parts) > 1 else ""
         
         if sub_cmd == "new":
-            return await self._pc_new(sub_args, user_id)
+            return (await self._pc_new(sub_args, user_id), False)
         elif sub_cmd == "create":
-            return await self._pc_create_link(user_id)
+            return await self._pc_create_link(user_id)  # 返回卡片
         elif sub_cmd == "list":
-            return await self._pc_list(user_id)
+            return (await self._pc_list(user_id), False)
         elif sub_cmd == "switch":
-            return await self._pc_switch(sub_args, user_id)
+            return (await self._pc_switch(sub_args, user_id), False)
         elif sub_cmd == "show":
-            return await self._pc_show(user_id)
+            return (await self._pc_show(user_id), False)
         elif sub_cmd == "del":
-            return await self._pc_delete(sub_args, user_id)
+            return (await self._pc_delete(sub_args, user_id), False)
         else:
-            return "未知子命令。可用: new, create, list, switch, show, del"
+            return ("未知子命令。可用: new, create, list, switch, show, del", False)
     
-    async def _pc_create_link(self, user_id: str) -> str:
-        """生成在线创建角色卡的链接"""
+    async def _pc_create_link(self, user_id: str) -> Tuple[str, bool]:
+        """发送创建角色卡的交互卡片"""
+        card = CardBuilder.build_create_character_card()
+        return (card, True)
+    
+    async def _handle_create_character_button(self, user_id: str):
+        """处理创建角色卡按钮点击 - 私聊发送链接"""
         if not self.web_app:
-            return "Web 服务未启用"
+            await self.client.send_direct_message(user_id, "Web 服务未启用")
+            return
         
         from ..config import settings
         token = self.web_app.generate_token(user_id)
         url = f"{settings.web_base_url}/create/{token}"
-        return f"🎲 点击链接创建角色卡:\n{url}\n\n链接有效期 10 分钟，仅限本人使用"
+        
+        msg = f"🎲 **你的专属角色卡创建链接**\n\n{url}\n\n⏰ 链接有效期 10 分钟，仅限本人使用"
+        await self.client.send_direct_message(user_id, msg)
     
     async def _pc_new(self, json_str: str, user_id: str) -> str:
         """导入角色卡"""
