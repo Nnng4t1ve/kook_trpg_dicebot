@@ -249,3 +249,123 @@ class CardBuilder:
             ]
         }
         return json.dumps([card])
+
+    @staticmethod
+    def build_opposed_check_card(
+        check_id: str,
+        initiator_name: str,
+        target_id: str,
+        initiator_skill: str,
+        target_skill: str,
+        initiator_bp: tuple = (0, 0),
+        target_bp: tuple = (0, 0),
+    ) -> str:
+        """构建对抗检定卡片"""
+
+        def bp_text(bonus: int, penalty: int) -> str:
+            if bonus > 0:
+                return f" 奖励骰×{bonus}"
+            elif penalty > 0:
+                return f" 惩罚骰×{penalty}"
+            return ""
+
+        init_bp = bp_text(initiator_bp[0], initiator_bp[1])
+        tgt_bp = bp_text(target_bp[0], target_bp[1])
+
+        if initiator_skill == target_skill:
+            title = f"⚔️ {initiator_skill} 对抗检定"
+            desc = f"**{initiator_name}** 向 (met){target_id}(met) 发起 **{initiator_skill}** 对抗"
+        else:
+            title = f"⚔️ {initiator_skill} vs {target_skill} 对抗检定"
+            desc = f"**{initiator_name}**({initiator_skill}{init_bp}) 向 (met){target_id}(met)({target_skill}{tgt_bp}) 发起对抗"
+
+        if init_bp or tgt_bp:
+            if initiator_skill == target_skill:
+                desc += f"\n{initiator_name}{init_bp} | 对方{tgt_bp}"
+
+        card = {
+            "type": "card",
+            "theme": "warning",
+            "size": "lg",
+            "modules": [
+                {
+                    "type": "header",
+                    "text": {"type": "plain-text", "content": title},
+                },
+                {"type": "divider"},
+                {
+                    "type": "section",
+                    "text": {
+                        "type": "kmarkdown",
+                        "content": f"{desc}\n\n双方点击按钮进行检定",
+                    },
+                },
+                {
+                    "type": "action-group",
+                    "elements": [
+                        {
+                            "type": "button",
+                            "theme": "primary",
+                            "value": json.dumps(
+                                {
+                                    "action": "opposed_check",
+                                    "check_id": check_id,
+                                }
+                            ),
+                            "click": "return-val",
+                            "text": {"type": "plain-text", "content": "🎲 进行检定"},
+                        }
+                    ],
+                },
+            ],
+        }
+        return json.dumps([card])
+
+    @staticmethod
+    def build_opposed_result_card(
+        initiator_name: str,
+        target_name: str,
+        skill_name: str,
+        initiator_roll: int,
+        initiator_target: int,
+        initiator_level: str,
+        target_roll: int,
+        target_target: int,
+        target_level: str,
+        winner: str,  # "initiator", "target", "tie"
+    ) -> str:
+        """构建对抗检定结果卡片"""
+        if winner == "initiator":
+            theme = "success"
+            result_text = f"🏆 **{initiator_name}** 胜出！"
+        elif winner == "target":
+            theme = "danger"
+            result_text = f"🏆 **{target_name}** 胜出！"
+        else:
+            theme = "secondary"
+            result_text = "⚖️ **平局！**"
+
+        card = {
+            "type": "card",
+            "theme": theme,
+            "size": "lg",
+            "modules": [
+                {
+                    "type": "header",
+                    "text": {"type": "plain-text", "content": f"⚔️ {skill_name} 对抗结果"},
+                },
+                {"type": "divider"},
+                {
+                    "type": "section",
+                    "text": {
+                        "type": "kmarkdown",
+                        "content": f"**{initiator_name}**: D100={initiator_roll}/{initiator_target} 【{initiator_level}】\n**{target_name}**: D100={target_roll}/{target_target} 【{target_level}】",
+                    },
+                },
+                {
+                    "type": "section",
+                    "text": {"type": "kmarkdown", "content": result_text},
+                },
+            ],
+        }
+        return json.dumps([card])

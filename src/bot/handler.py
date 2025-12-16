@@ -98,6 +98,8 @@ class MessageHandler:
             await self._handle_create_character_button(user_id)
         elif action == "grow_character":
             await self._handle_grow_character_button(user_id, value)
+        elif action == "opposed_check":
+            await self._handle_opposed_check_button(value, user_id, target_id, user_name)
     
     async def _handle_check_button(
         self, value: dict, user_id: str, target_id: str, user_name: str
@@ -196,7 +198,10 @@ class MessageHandler:
         # 需要 channel_id 的命令
         if command == "check":
             return await self._cmd_kp_check(args, user_id, channel_id, user_name)
-        
+
+        if command == "ad":
+            return await self._cmd_opposed_check(args, user_id, channel_id, user_name)
+
         # pc create 需要返回卡片
         if command == "pc":
             return await self._cmd_character(args, user_id)
@@ -744,7 +749,239 @@ class MessageHandler:
         
         logger.info(f"KP {user_id} 发起检定: {skill_name}, check_id={check.check_id}")
         return (card, True)
-    
+
+    async def _cmd_opposed_check(
+        self, args: str, user_id: str, channel_id: str, user_name: str
+    ) -> Tuple[str, bool]:
+        """对抗检定: .ad @用户 力量 或 .ad @用户 斗殴 闪避 r1 p1"""
+        import re
+
+        args = args.strip()
+        if not args:
+            return (
+                "格式: `.ad @用户 <技能> [r/p] [r/p]`\n"
+                "示例: `.ad @张三 力量` 或 `.ad @张三 斗殴 闪避 r1 p1`",
+                False,
+            )
+
+        # 解析 @用户 (KOOK 格式: (met)用户ID(met))
+        match = re.match(r"\(met\)(\d+)\(met\)\s*(.+)", args)
+        if not match:
+            return ("格式: `.ad @用户 <技能>`\n请 @ 一个用户", False)
+
+        target_id = match.group(1)
+        rest_part = match.group(2).strip()
+
+        if not rest_part:
+            return ("请指定技能名称", False)
+
+        if target_id == user_id:
+            return ("不能和自己对抗", False)
+
+        # 解析参数：技能1 [技能2] [r/p] [r/p]
+        parts = rest_part.split()
+        initiator_skill = None
+        target_skill = None
+        initiator_bonus, initiator_penalty = 0, 0
+        target_bonus, target_penalty = 0, 0
+
+        skills = []
+        bp_list = []  # 奖励骰/惩罚骰列表
+
+        for part in parts:
+            bp = self._parse_bonus_penalty(part)
+            if bp:
+                bp_list.append(bp)
+            else:
+                skills.append(part)
+
+        if len(skills) == 0:
+            return ("请指定技能名称", False)
+        elif len(skills) == 1:
+            initiator_skill = skills[0]
+            target_skill = skills[0]
+        else:
+            initiator_skill = skills[0]
+            target_skill = skills[1]
+
+        # 分配奖励骰/惩罚骰
+        if len(bp_list) >= 1:
+            initiator_bonus, initiator_penalty = bp_list[0]
+        if len(bp_list) >= 2:
+            target_bonus, target_penalty = bp_list[1]
+
+        # 创建对抗检定
+        check = self.check_manager.create_opposed_check(
+            initiator_id=user_id,
+            target_id=target_id,
+            initiator_skill=initiator_skill,
+            target_skill=target_skill,
+            channel_id=channel_id,
+            initiator_bonus=initiator_bonus,
+            initiator_penalty=initiator_penalty,
+            target_bonus=target_bonus,
+            target_penalty=target_penalty,
+        )
+
+        # 构建卡片
+        card = CardBuilder.build_opposed_check_card(
+            check_id=check.check_id,
+            initiator_name=user_name,
+            target_id=target_id,
+            initiator_skill=initiator_skill,
+            target_skill=target_skill,
+            initiator_bp=(initiator_bonus, initiator_penalty),
+            target_bp=(target_bonus, target_penalty),
+        )
+
+        logger.info(
+            f"对抗检定: {user_id}({initiator_skill}) vs {target_id}({target_skill})"
+        )
+        return (card, True)
+
+    async def _handle_opposed_check_button(
+        self, value: dict, user_id: str, channel_id: str, user_name: str
+    ):
+        """处理对抗检定按钮点击"""
+        from ..dice.rules import SuccessLevel
+
+        check_id = value.get("check_id")
+
+        check = self.check_manager.get_opposed_check(check_id)
+        if not check:
+            await self.client.send_message(
+                channel_id, f"(met){user_id}(met) 该对抗检定已过期", msg_type=9
+            )
+            return
+
+        # 验证是否是参与者
+        if user_id not in (check.initiator_id, check.target_id):
+            await self.client.send_message(
+                channel_id, f"(met){user_id}(met) 你不是这次对抗的参与者", msg_type=9
+            )
+            return
+
+        # 检查是否已经检定过
+        if user_id == check.initiator_id and check.initiator_level is not None:
+            await self.client.send_message(
+                channel_id, f"(met){user_id}(met) 你已经完成检定了", msg_type=9
+            )
+            return
+        if user_id == check.target_id and check.target_level is not None:
+            await self.client.send_message(
+                channel_id, f"(met){user_id}(met) 你已经完成检定了", msg_type=9
+            )
+            return
+
+        # 获取该用户对应的技能和奖励骰/惩罚骰
+        skill_name = check.get_skill_for_user(user_id)
+        bonus, penalty = check.get_bonus_penalty_for_user(user_id)
+
+        # 获取技能值
+        char = await self.char_manager.get_active(user_id)
+        if not char:
+            await self.client.send_message(
+                channel_id, f"(met){user_id}(met) 请先导入角色卡", msg_type=9
+            )
+            return
+
+        skill_value = char.get_skill(skill_name)
+        if skill_value is None:
+            await self.client.send_message(
+                channel_id,
+                f"(met){user_id}(met) 你的角色卡中没有 **{skill_name}** 技能/属性",
+                msg_type=9,
+            )
+            return
+
+        # 执行检定（带奖励骰/惩罚骰）
+        rule_settings = await self.db.get_user_rule(user_id)
+        rule = get_rule(
+            rule_settings["rule"], rule_settings["critical"], rule_settings["fumble"]
+        )
+
+        if bonus > 0 or penalty > 0:
+            roll_result = DiceRoller.roll_d100_with_bonus(bonus, penalty)
+            roll = roll_result.final
+        else:
+            roll = DiceRoller.roll_d100()
+
+        result = rule.check(roll, skill_value)
+
+        # 成功等级转数值 (用于比较)
+        level_values = {
+            SuccessLevel.CRITICAL: 4,
+            SuccessLevel.EXTREME: 3,
+            SuccessLevel.HARD: 2,
+            SuccessLevel.REGULAR: 1,
+            SuccessLevel.FAILURE: 0,
+            SuccessLevel.FUMBLE: 0,  # 大失败按失败计算
+        }
+        level_num = level_values[result.level]
+
+        # 保存结果
+        self.check_manager.set_opposed_result(
+            check_id, user_id, roll, skill_value, level_num
+        )
+
+        # 发送个人结果
+        await self.client.send_message(
+            channel_id,
+            f"(met){user_id}(met) **{skill_name}** D100={roll}/{skill_value} 【{result.level.value}】",
+            msg_type=9,
+        )
+
+        # 检查是否双方都完成了
+        check = self.check_manager.get_opposed_check(check_id)
+        if check and check.is_complete():
+            await self._send_opposed_result(check, channel_id)
+
+    async def _send_opposed_result(self, check, channel_id: str):
+        """发送对抗检定最终结果"""
+        # 获取双方名字
+        init_char = await self.char_manager.get_active(check.initiator_id)
+        target_char = await self.char_manager.get_active(check.target_id)
+        init_name = init_char.name if init_char else f"(met){check.initiator_id}(met)"
+        target_name = (
+            target_char.name if target_char else f"(met){check.target_id}(met)"
+        )
+
+        # 等级数值转文字
+        level_names = {4: "大成功", 3: "极难成功", 2: "困难成功", 1: "成功", 0: "失败"}
+
+        init_level_text = level_names.get(check.initiator_level, "失败")
+        target_level_text = level_names.get(check.target_level, "失败")
+
+        # 判断胜负
+        if check.initiator_level > check.target_level:
+            winner = "initiator"
+        elif check.target_level > check.initiator_level:
+            winner = "target"
+        else:
+            winner = "tie"
+
+        # 技能名称显示
+        if check.initiator_skill == check.target_skill:
+            skill_display = check.initiator_skill
+        else:
+            skill_display = f"{check.initiator_skill} vs {check.target_skill}"
+
+        # 构建结果卡片
+        card = CardBuilder.build_opposed_result_card(
+            initiator_name=init_name,
+            target_name=target_name,
+            skill_name=skill_display,
+            initiator_roll=check.initiator_roll,
+            initiator_target=check.initiator_target,
+            initiator_level=init_level_text,
+            target_roll=check.target_roll,
+            target_target=check.target_target,
+            target_level=target_level_text,
+            winner=winner,
+        )
+
+        await self.client.send_message(channel_id, card, msg_type=10)
+
     async def _cmd_help(self, args: str, user_id: str) -> str:
         """帮助命令"""
         return """**COC Dice Bot 帮助**
@@ -762,6 +999,8 @@ class MessageHandler:
 
 **KP 命令**
 `.check <技能名> [描述]` - 发起检定 (玩家点击按钮骰点)
+`.ad @用户 <技能>` - 对抗检定 (如 .ad @张三 力量)
+`.ad @用户 <我的技能> <对方技能>` - 不同技能对抗 (如 .ad @张三 斗殴 闪避)
 
 **角色卡命令**
 `.pc create` - 获取在线创建链接
