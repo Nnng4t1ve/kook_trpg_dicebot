@@ -26,8 +26,10 @@ class HelpCommand(BaseCommand):
 `.ra <技能名> <值>` - 指定值检定 (如 .ra 侦查 50)
 `.ra r2 侦查` - 带奖励骰的技能检定
 `.ra p1 聆听 60` - 带惩罚骰的指定值检定
+`.ra p1 <技能> t<轮数>` - 多轮检定 (如 .ra p1 手枪 t3)
 `.rc <技能名> <值>` - 指定值检定 (同 .ra 技能 值)
 `.sc <成功>/<失败>` - SAN Check (如 .sc0/1d6, .sc1d4/2d6)
+`.gun <技能> [r/p] t<波数>` - 全自动枪械连发 (如 .gun 步枪 r1 t7)
 
 **KP 命令**
 `.check <技能名> [描述]` - 发起检定 (玩家点击按钮骰点)
@@ -42,6 +44,7 @@ class HelpCommand(BaseCommand):
 **NPC 命令**
 `.npc create <名称> [模板]` - 创建 NPC (1=普通, 2=困难, 3=极难)
 `.npc <名称> ra <技能>` - NPC 技能检定 (如 .npc 守卫 ra力量)
+`.npc <名称> gun <技能> [r/p] t<波数>` - NPC 全自动枪械连发
 `.npc <名称> ad @用户 <技能>` - NPC 对抗检定 (如 .npc 守卫 ad @张三 斗殴 闪避 r1 p1)
 `.npc list` - 列出当前频道 NPC
 `.npc del <名称>` - 删除 NPC
