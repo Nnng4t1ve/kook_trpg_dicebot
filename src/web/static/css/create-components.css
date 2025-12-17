@@ -1,0 +1,235 @@
+/* ===== 技能表格 ===== */
+.skill-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: var(--font-base);
+}
+
+.skill-table th {
+    background: var(--bg-dark);
+    padding: 6px 4px;
+    text-align: center;
+    color: var(--secondary);
+    font-weight: normal;
+}
+
+.skill-table td {
+    padding: 4px 2px;
+    text-align: center;
+    border-bottom: 1px solid var(--border-light);
+}
+
+.skill-table .skill-name {
+    text-align: left;
+    padding-left: 8px;
+    color: var(--text-secondary);
+}
+
+.skill-table input {
+    width: 50px;
+    padding: 6px 4px;
+    text-align: center;
+    font-size: var(--font-base);
+}
+
+.skill-table .base { color: var(--text-hint); }
+.skill-table .total {
+    color: var(--primary);
+    font-weight: bold;
+}
+
+.skill-table .custom-name,
+.skill-table .custom-base {
+    background: rgba(255, 193, 7, 0.2);
+    border: 1px dashed #ffc107;
+    color: #ffc107;
+}
+
+.skill-table .job { background: rgba(255, 152, 0, 0.15); }
+.skill-table .hobby { background: rgba(76, 175, 80, 0.15); }
+
+.skill-category {
+    margin-bottom: 15px;
+}
+
+.skill-category h3 {
+    font-size: var(--font-base);
+    color: var(--secondary);
+    margin-bottom: 8px;
+    padding: 5px;
+    background: var(--bg-darker);
+    border-radius: var(--radius-sm);
+}
+
+/* ===== Toast 提示 ===== */
+.toast {
+    position: fixed;
+    top: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    padding: 12px 24px;
+    border-radius: var(--radius-lg);
+    color: var(--text-primary);
+    font-weight: bold;
+    z-index: 1000;
+    animation: slideDown 0.3s ease;
+}
+
+.toast.warning {
+    background: linear-gradient(135deg, var(--danger), var(--danger-dark));
+}
+
+.toast.success {
+    background: linear-gradient(135deg, var(--success), var(--success-light));
+}
+
+@keyframes slideDown {
+    from { top: -50px; opacity: 0; }
+    to { top: 20px; opacity: 1; }
+}
+
+/* ===== 物品栏表格 ===== */
+.inventory-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: var(--font-base);
+}
+
+.inventory-table th {
+    background: #4a7c9b;
+    color: var(--text-primary);
+    padding: 8px;
+    text-align: center;
+    border: 1px solid #5a8caa;
+}
+
+.inventory-table td {
+    border: 1px solid var(--border-medium);
+    padding: 2px;
+}
+
+.inventory-table tr:nth-child(odd) td {
+    background: rgba(200, 220, 240, 0.1);
+}
+
+.inventory-table tr:nth-child(even) td {
+    background: rgba(255, 255, 255, 0.05);
+}
+
+.inventory-table td:first-child {
+    background: rgba(100, 150, 200, 0.2);
+    text-align: center;
+    color: var(--text-muted);
+}
+
+.inventory-table input {
+    width: 100%;
+    padding: 6px;
+    border: none;
+    background: transparent;
+    color: var(--text-primary);
+}
+
+.inventory-table input:focus {
+    outline: 1px solid var(--primary);
+    background: var(--bg-darker);
+}
+
+/* ===== 背景故事表格 ===== */
+.backstory-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: var(--font-base);
+}
+
+.backstory-table th {
+    background: #4a7c9b;
+    color: var(--text-primary);
+    padding: 8px;
+    text-align: center;
+    border: 1px solid #5a8caa;
+}
+
+.backstory-table td {
+    border: 1px solid var(--border-medium);
+    padding: 4px;
+    vertical-align: top;
+}
+
+.backstory-table tr:nth-child(odd) td {
+    background: rgba(200, 220, 240, 0.1);
+}
+
+.backstory-table tr:nth-child(even) td {
+    background: rgba(255, 255, 255, 0.05);
+}
+
+.backstory-label {
+    background: rgba(100, 150, 200, 0.2) !important;
+    text-align: center;
+    color: var(--text-secondary);
+    font-weight: bold;
+    white-space: nowrap;
+}
+
+.backstory-input {
+    width: 100%;
+    min-height: 50px;
+    padding: 8px;
+    border: none;
+    background: transparent;
+    color: var(--text-primary);
+    resize: none;
+    overflow: hidden;
+    font-family: inherit;
+    font-size: var(--font-base);
+    line-height: 1.5;
+}
+
+.backstory-input:focus {
+    outline: 1px solid var(--primary);
+    background: var(--bg-darker);
+}
+
+.key-connection {
+    width: 20px;
+    height: 20px;
+    cursor: pointer;
+    accent-color: var(--primary);
+}
+
+.backstory-table td:last-child {
+    text-align: center;
+    vertical-align: middle;
+}
+
+/* ===== 详细经历 ===== */
+.detailed-story-section {
+    margin-top: 15px;
+    padding-top: 15px;
+    border-top: 1px solid var(--border-medium);
+}
+
+.detailed-story-input {
+    width: 100%;
+    min-height: 200px;
+    padding: 12px;
+    border: 1px solid var(--border-medium);
+    border-radius: var(--radius-lg);
+    background: var(--bg-darker);
+    color: var(--text-primary);
+    resize: none;
+    overflow: hidden;
+    font-family: inherit;
+    font-size: var(--font-md);
+    line-height: 1.6;
+}
+
+.detailed-story-input:focus {
+    outline: 2px solid var(--primary);
+    background: var(--bg-dark);
+}
+
+.detailed-story-input::placeholder {
+    color: #666;
+}

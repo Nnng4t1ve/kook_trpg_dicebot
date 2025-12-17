@@ -23,6 +23,11 @@ def create_app(db: Database, char_manager: CharacterManager) -> FastAPI:
     templates_dir = Path(__file__).parent / "templates"
     templates = Jinja2Templates(directory=str(templates_dir))
     
+    # 静态文件目录
+    static_dir = Path(__file__).parent / "static"
+    if static_dir.exists():
+        app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
+    
     # 存储临时 token -> (user_id, created_at) 映射
     user_tokens: dict[str, tuple[str, float]] = {}
     TOKEN_EXPIRE_SECONDS = 600  # 10 分钟过期

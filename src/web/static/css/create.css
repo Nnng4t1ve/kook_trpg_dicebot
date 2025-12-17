@@ -1,0 +1,312 @@
+/* ===== CSS 变量 ===== */
+:root {
+    --primary: #4fc3f7;
+    --primary-dark: #2196f3;
+    --secondary: #81d4fa;
+    --success: #4caf50;
+    --success-light: #8bc34a;
+    --warning: #ff9800;
+    --warning-dark: #f57c00;
+    --danger: #f44336;
+    --danger-dark: #e91e63;
+    --purple: #9c27b0;
+    --purple-dark: #673ab7;
+    
+    --bg-gradient-start: #1a1a2e;
+    --bg-gradient-end: #16213e;
+    --bg-card: rgba(255, 255, 255, 0.1);
+    --bg-dark: rgba(0, 0, 0, 0.3);
+    --bg-darker: rgba(0, 0, 0, 0.2);
+    
+    --text-primary: #fff;
+    --text-secondary: #ccc;
+    --text-muted: #aaa;
+    --text-hint: #888;
+    
+    --border-light: rgba(255, 255, 255, 0.1);
+    --border-medium: rgba(255, 255, 255, 0.2);
+    
+    --radius-sm: 5px;
+    --radius-md: 6px;
+    --radius-lg: 8px;
+    --radius-xl: 12px;
+    
+    --font-xs: 0.65rem;
+    --font-sm: 0.75rem;
+    --font-base: 0.85rem;
+    --font-md: 0.9rem;
+    --font-lg: 1rem;
+    --font-xl: 1.1rem;
+    --font-2xl: 1.3rem;
+    --font-3xl: 1.5rem;
+}
+
+/* ===== 基础样式 ===== */
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+body {
+    font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+    background: linear-gradient(135deg, var(--bg-gradient-start) 0%, var(--bg-gradient-end) 100%);
+    min-height: 100vh;
+    padding: 15px;
+    color: var(--text-primary);
+}
+
+.container {
+    max-width: 1000px;
+    margin: 0 auto;
+}
+
+h1 {
+    text-align: center;
+    margin-bottom: 20px;
+    font-size: var(--font-3xl);
+}
+
+/* ===== 卡片组件 ===== */
+.card {
+    background: var(--bg-card);
+    border-radius: var(--radius-xl);
+    padding: 15px;
+    margin-bottom: 15px;
+}
+
+.card h2 {
+    margin-bottom: 12px;
+    color: var(--primary);
+    font-size: var(--font-lg);
+}
+
+.card h3 {
+    font-size: var(--font-md);
+    color: var(--secondary);
+    margin-bottom: 10px;
+}
+
+/* ===== 表单元素 ===== */
+label {
+    display: block;
+    margin-bottom: 4px;
+    color: var(--text-muted);
+    font-size: var(--font-base);
+}
+
+input {
+    width: 100%;
+    padding: 8px;
+    border: none;
+    border-radius: var(--radius-md);
+    background: var(--bg-dark);
+    color: var(--text-primary);
+    font-size: var(--font-md);
+}
+
+input:focus {
+    outline: 2px solid var(--primary);
+}
+
+input[readonly] {
+    background: rgba(79, 195, 247, 0.15);
+    color: var(--primary);
+}
+
+.hint {
+    font-size: var(--font-sm);
+    color: var(--text-hint);
+}
+
+/* ===== 属性网格 ===== */
+.attr-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 10px;
+}
+
+.attr-item {
+    text-align: center;
+}
+
+.attr-item label {
+    font-weight: bold;
+    color: var(--text-primary);
+    font-size: 0.8rem;
+}
+
+.attr-item input[type="number"] {
+    text-align: center;
+    padding: 6px;
+}
+
+.attr-item .formula {
+    font-size: var(--font-xs);
+    color: var(--text-hint);
+    font-weight: normal;
+}
+
+.attr-item .attr-checkbox {
+    margin-right: 4px;
+    cursor: pointer;
+    width: 16px;
+    height: 16px;
+    accent-color: var(--primary);
+}
+
+.attr-item .attr-label-row {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+}
+
+/* ===== 属性总计 ===== */
+.attr-total {
+    display: flex;
+    justify-content: space-around;
+    margin-top: 12px;
+    padding: 10px;
+    background: var(--bg-darker);
+    border-radius: var(--radius-lg);
+    font-size: var(--font-md);
+}
+
+.attr-total strong {
+    color: var(--primary);
+    font-size: var(--font-xl);
+}
+
+/* ===== 点数显示 ===== */
+.points-display {
+    display: flex;
+    justify-content: space-around;
+    margin-top: 12px;
+    padding: 12px;
+    background: var(--bg-dark);
+    border-radius: var(--radius-lg);
+    font-size: var(--font-md);
+}
+
+.points-box {
+    text-align: center;
+    padding: 8px 16px;
+    border-radius: var(--radius-lg);
+    background: var(--bg-card);
+}
+
+.points-box .label {
+    font-size: var(--font-sm);
+    color: var(--text-muted);
+    margin-bottom: 4px;
+}
+
+.points-box .value {
+    font-size: var(--font-2xl);
+    font-weight: bold;
+}
+
+.points-box .value.job-points { color: var(--warning); }
+.points-box .value.hobby-points { color: var(--success); }
+.points-box .value.zero {
+    color: var(--danger);
+    animation: pulse 1s infinite;
+}
+.points-box .value.negative {
+    color: var(--danger);
+    font-weight: bold;
+}
+
+.points-formula {
+    font-size: 0.7rem;
+    color: var(--text-hint);
+    margin-top: 4px;
+}
+
+@keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.5; }
+}
+
+/* ===== 派生属性 ===== */
+.derived-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 8px;
+}
+
+.derived-item {
+    text-align: center;
+    background: var(--bg-darker);
+    padding: 8px;
+    border-radius: var(--radius-lg);
+}
+
+.derived-item .label {
+    font-size: var(--font-sm);
+    color: var(--secondary);
+}
+
+.derived-item .value {
+    font-size: var(--font-xl);
+    font-weight: bold;
+    color: var(--primary);
+}
+
+/* ===== 按钮 ===== */
+.btn {
+    width: 100%;
+    padding: 12px;
+    border: none;
+    border-radius: var(--radius-lg);
+    background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+    color: var(--text-primary);
+    font-size: var(--font-lg);
+    font-weight: bold;
+    cursor: pointer;
+    transition: opacity 0.2s;
+}
+
+.btn:hover { opacity: 0.9; }
+.btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.btn.approved {
+    background: linear-gradient(135deg, var(--success), var(--success-light));
+    animation: glow 1.5s ease-in-out infinite alternate;
+}
+
+.btn-secondary {
+    background: linear-gradient(135deg, var(--purple), var(--purple-dark));
+    margin-top: 8px;
+}
+
+.btn-random {
+    padding: 4px 10px;
+    border: none;
+    border-radius: var(--radius-sm);
+    background: linear-gradient(135deg, var(--warning), var(--warning-dark));
+    color: var(--text-primary);
+    font-size: 0.8rem;
+    cursor: pointer;
+    margin-left: 10px;
+    width: auto;
+}
+
+.btn-random:hover { opacity: 0.9; }
+
+@keyframes glow {
+    from { box-shadow: 0 0 5px var(--success); }
+    to { box-shadow: 0 0 20px var(--success); }
+}
+
+/* ===== 成功提示 ===== */
+.success {
+    background: var(--success);
+    padding: 20px;
+    border-radius: 10px;
+    text-align: center;
+}
