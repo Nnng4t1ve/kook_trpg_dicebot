@@ -351,3 +351,314 @@ class RollCheckCommand(BaseCommand):
         result = rule.check(roll, target)
         
         return CommandResult.text(f"**{skill_name}** 检定 ({rule.name})\n{roll_detail}\n{result}")
+
+
+@command("gun", compact=True)
+class FullAutoGunCommand(BaseCommand):
+    """全自动枪械连发判定命令"""
+    
+    description = "全自动枪械连发判定"
+    usage = ".gun 步枪 r1 t7, .gun冲锋枪 t5, .gun步枪50 r1 t6"
+    
+    async def execute(self, args: str) -> CommandResult:
+        """
+        全自动枪械连发判定
+        
+        规则说明：
+        - 第1次：正常判定 + 环境奖励骰
+        - 第2次：连发惩罚骰1 + 环境奖励骰（抵消）
+        - 第3次：连发惩罚骰2 + 环境奖励骰 = 实际惩罚骰1
+        - 第4次：连发惩罚骰2（上限）+ 环境奖励骰 = 困难成功 + 惩罚骰1
+        - 第5次：极难成功 + 惩罚骰1
+        - 第6次：大成功 + 惩罚骰1
+        - 第7次及以后：默认失败
+        """
+        args = args.strip()
+        if not args:
+            return CommandResult.text(
+                "格式: .gun <技能名> [r奖励骰] t<连发次数>\n"
+                "例如: .gun 步枪 r1 t7, .gun冲锋枪 t5, .gun步枪50 r1 t6"
+            )
+        
+        # 解析参数
+        env_bonus, env_penalty, times, skill_name, skill_value = self._parse_gun_args(args)
+        
+        if not skill_name:
+            return CommandResult.text("请指定技能名称，如: .gun 步枪 r1 t5")
+        
+        if times < 1:
+            return CommandResult.text("请指定连发次数，如: .gun 步枪 r1 t5")
+        
+        # 限制最大连发次数
+        times = min(times, 10)
+        
+        # 如果没有指定值，从角色卡获取
+        if skill_value is None:
+            char = await self.ctx.char_manager.get_active(self.ctx.user_id)
+            if not char:
+                return CommandResult.text("请先导入角色卡或指定技能值，如: .gun步枪50 r1 t5")
+            
+            skill_value = char.get_skill(skill_name)
+            if skill_value is None:
+                return CommandResult.text(f"未找到技能: {skill_name}，可指定值: .gun{skill_name}50 r1 t5")
+        
+        return await self._do_full_auto_check(skill_name, skill_value, env_bonus, env_penalty, times)
+    
+    def _parse_gun_args(self, args: str) -> tuple[int, int, int, int, str, int | None]:
+        """
+        解析全自动枪械参数
+        返回: (env_bonus, env_penalty, times, skill_name, skill_value or None)
+        """
+        parts = args.split()
+        env_bonus = 0
+        env_penalty = 0
+        times = 0
+        skill_value = None
+        skill_name = ""
+        
+        remaining_parts = []
+        for part in parts:
+            # 解析环境奖励骰/惩罚骰 r1, r2, p1, p2
+            bp_match = re.match(r"^([rp])(\d*)$", part.lower())
+            if bp_match:
+                bp_type = bp_match.group(1)
+                bp_count = int(bp_match.group(2)) if bp_match.group(2) else 1
+                bp_count = min(bp_count, 5)
+                if bp_type == "r":
+                    env_bonus += bp_count
+                else:
+                    env_penalty += bp_count
+                continue
+            
+            # 解析连发次数 t3, t5, t7
+            t_match = re.match(r"^t(\d+)$", part.lower())
+            if t_match:
+                times = int(t_match.group(1))
+                continue
+            
+            remaining_parts.append(part)
+        
+        # 处理技能名和技能值
+        if remaining_parts:
+            skill_str = " ".join(remaining_parts)
+            # 检查末尾是否有数字（技能值）
+            end_num_match = re.search(r"(\d+)$", skill_str)
+            if end_num_match:
+                skill_value = int(end_num_match.group(1))
+                skill_name = skill_str[:end_num_match.start()].strip()
+            else:
+                skill_name = skill_str.strip()
+        
+        # 如果没有空格分隔，尝试紧凑格式解析
+        if not skill_name and not remaining_parts:
+            # 从原始 args 中提取（去掉 r/p 和 t 参数后）
+            compact_args = args
+            # 移除 r/p 参数
+            compact_args = re.sub(r"\b[rp]\d*\b", "", compact_args, flags=re.IGNORECASE)
+            # 移除 t 参数
+            compact_args = re.sub(r"\bt\d+\b", "", compact_args, flags=re.IGNORECASE)
+            compact_args = compact_args.strip()
+            
+            if compact_args:
+                end_num_match = re.search(r"(\d+)$", compact_args)
+                if end_num_match:
+                    skill_value = int(end_num_match.group(1))
+                    skill_name = compact_args[:end_num_match.start()].strip()
+                else:
+                    skill_name = compact_args
+        
+        return (env_bonus, env_penalty, times, skill_name, skill_value)
+    
+    async def _do_full_auto_check(
+        self, skill_name: str, target: int, env_bonus: int, env_penalty: int, times: int
+    ) -> CommandResult:
+        """执行全自动枪械连发判定"""
+        from ...dice.rules import SuccessLevel
+        
+        rule_settings = await self.ctx.db.get_user_rule(self.ctx.user_id)
+        rule = get_rule(
+            rule_settings["rule"],
+            rule_settings["critical"],
+            rule_settings["fumble"]
+        )
+        
+        # 每波弹幕的子弹数 = 技能值 / 10
+        bullets_per_burst = target // 10
+        
+        # 构建标题
+        env_desc_parts = []
+        if env_bonus > 0:
+            env_desc_parts.append(f"环境奖励骰×{env_bonus}")
+        if env_penalty > 0:
+            env_desc_parts.append(f"环境惩罚骰×{env_penalty}")
+        env_desc = f" ({', '.join(env_desc_parts)})" if env_desc_parts else ""
+        lines = [f"🔫 **{skill_name}** 全自动连发 ×{times}波{env_desc} ({rule.name})"]
+        lines.append(f"基础目标值: {target} | 每波弹幕: {bullets_per_burst}发")
+        lines.append("---")
+        
+        total_hits = 0
+        total_penetrate = 0  # 贯穿子弹数
+        total_normal = 0     # 普通命中数
+        
+        for i in range(times):
+            burst_num = i + 1
+            
+            # 计算本波弹幕的参数
+            burst_penalty, difficulty_level, is_auto_fail, half_only = self._calc_burst_params(burst_num)
+            
+            if is_auto_fail:
+                lines.append(f"第{burst_num}波: ❌ 不命中 (连发上限)")
+                continue
+            
+            # 计算实际奖励骰/惩罚骰（环境奖励骰 - 连发惩罚骰 - 环境惩罚骰）
+            total_penalty = burst_penalty + env_penalty
+            net_bonus = env_bonus - total_penalty
+            actual_bonus = max(0, net_bonus)
+            actual_penalty = max(0, -net_bonus)
+            
+            # 计算实际目标值（根据难度等级）
+            if difficulty_level == 0:
+                actual_target = target
+                diff_desc = ""
+            elif difficulty_level == 1:
+                actual_target = target // 2
+                diff_desc = "[困难] "
+            elif difficulty_level == 2:
+                actual_target = target // 5
+                diff_desc = "[极难] "
+            else:  # difficulty_level == 3
+                actual_target = 1  # 只有大成功才算成功
+                diff_desc = "[需大成功] "
+            
+            # 执行骰点
+            if actual_bonus > 0 or actual_penalty > 0:
+                roll_result = DiceRoller.roll_d100_with_bonus(actual_bonus, actual_penalty)
+                roll = roll_result.final
+                roll_detail = str(roll_result)
+            else:
+                roll = DiceRoller.roll_d100()
+                roll_detail = f"D100={roll}"
+            
+            # 判定结果
+            result = rule.check(roll, actual_target)
+            
+            # 对于需要大成功的情况，只有大成功才算成功
+            if difficulty_level == 3:
+                if result.level == SuccessLevel.CRITICAL:
+                    is_success = True
+                    result_text = "大成功"
+                else:
+                    is_success = False
+                    result_text = "失败"
+            else:
+                is_success = result.is_success
+                result_text = result.level.value
+            
+            # 计算命中子弹数和贯穿数
+            hits = 0
+            penetrate = 0  # 贯穿数
+            
+            if not is_success:
+                hits = 0
+            elif half_only:
+                # 第5-6波只能命中一半，且难度>=极难不能贯穿
+                hits = bullets_per_burst // 2
+                # difficulty_level >= 2 表示难度是极难或更高，不能贯穿
+            elif result.level in (SuccessLevel.CRITICAL, SuccessLevel.EXTREME):
+                # 极难成功及以上：全部命中
+                hits = bullets_per_burst
+                # 只有难度等级低于极难时才能贯穿
+                if difficulty_level < 2:
+                    # 前半数（至少1发）造成贯穿
+                    penetrate = max(1, hits // 2)
+            else:
+                # 困难成功及以下：命中一半
+                hits = bullets_per_burst // 2
+            
+            normal_hits = hits - penetrate  # 普通命中数
+            total_hits += hits
+            total_penetrate += penetrate
+            total_normal += normal_hits
+            
+            # 构建本波弹幕的描述
+            bp_info = self._build_bp_info(burst_penalty, env_bonus, env_penalty, actual_bonus, actual_penalty)
+            if not is_success:
+                hit_mark = "未命中"
+            elif penetrate > 0:
+                hit_mark = f"命中 {hits}发 (贯穿{penetrate}发)"
+            else:
+                hit_mark = f"命中 {hits}/{bullets_per_burst}发"
+            
+            lines.append(
+                f"第{burst_num}波: {diff_desc}{roll_detail} → {result_text} | {hit_mark}"
+                f"\n　　　{bp_info}"
+            )
+        
+        lines.append("---")
+        if total_penetrate > 0:
+            lines.append(f"**总命中: {total_hits}发** (贯穿{total_penetrate}发 + 普通{total_normal}发)")
+        else:
+            lines.append(f"**总命中: {total_hits}发**")
+        
+        return CommandResult.text("\n".join(lines))
+    
+    def _calc_burst_params(self, burst_num: int) -> tuple[int, int, bool, bool]:
+        """
+        计算第 N 波弹幕的参数
+        返回: (burst_penalty, difficulty_level, is_auto_fail, half_only)
+        - burst_penalty: 连发惩罚骰数量
+        - difficulty_level: 难度等级 (0=普通, 1=困难, 2=极难, 3=大成功)
+        - is_auto_fail: 是否自动失败（不命中）
+        - half_only: 是否只能命中一半
+        """
+        if burst_num == 1:
+            # 第1波：正常判定
+            return (0, 0, False, False)
+        elif burst_num == 2:
+            # 第2波：连发惩罚骰1
+            return (1, 0, False, False)
+        elif burst_num == 3:
+            # 第3波：连发惩罚骰2
+            return (2, 0, False, False)
+        elif burst_num == 4:
+            # 第4波：连发惩罚骰2（上限），困难成功
+            return (2, 1, False, False)
+        elif burst_num == 5:
+            # 第5波：极难成功，只能命中一半
+            return (2, 2, False, True)
+        elif burst_num == 6:
+            # 第6波：需要大成功，只能命中一半
+            return (2, 3, False, True)
+        else:
+            # 第7波及以后：不命中
+            return (2, 3, True, True)
+    
+    def _build_bp_info(
+        self, burst_penalty: int, env_bonus: int, env_penalty: int,
+        actual_bonus: int, actual_penalty: int
+    ) -> str:
+        """构建奖励骰/惩罚骰信息描述"""
+        parts = []
+        
+        if burst_penalty > 0:
+            parts.append(f"连发惩罚骰×{burst_penalty}")
+        
+        if env_bonus > 0:
+            parts.append(f"环境奖励骰×{env_bonus}")
+        
+        if env_penalty > 0:
+            parts.append(f"环境惩罚骰×{env_penalty}")
+        
+        if not parts:
+            return "无修正"
+        
+        calc = ", ".join(parts)
+        
+        if actual_bonus > 0:
+            result = f"实际奖励骰×{actual_bonus}"
+        elif actual_penalty > 0:
+            result = f"实际惩罚骰×{actual_penalty}"
+        else:
+            result = "抵消"
+        
+        return f"({calc} → {result})"
