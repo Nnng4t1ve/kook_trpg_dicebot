@@ -86,7 +86,9 @@ class HelpCommand(BaseCommand):
 `.note w <序号>` - 查看具体内容
 
 **其他命令**
-`.push` - 将下一条消息发布为卡片并置顶""")
+`.push` - 将下一条消息发布为卡片并置顶
+  发送 .push 后，再发送要置顶的内容，机器人会自动转为卡片并置顶
+  支持 KMarkdown 格式，仅限频道使用""")
 
 
 @command("ri")
