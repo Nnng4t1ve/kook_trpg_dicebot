@@ -24,6 +24,7 @@ class NPCCommand(BaseCommand):
                 "**NPC 命令**\n"
                 "`.npc create <名称> [模板]` - 创建 NPC (模板: 1=普通, 2=困难, 3=极难)\n"
                 "`.npc <名称> ra <技能>` - NPC 技能检定\n"
+                "`.npc <名称> rha <技能>` - NPC 暗骰检定（结果私聊发送）\n"
                 "`.npc <名称> gun <技能> [r奖励骰] t<波数>` - NPC 全自动枪械连发\n"
                 "`.npc <名称> ad @用户 <技能1> [技能2] [r/p]` - NPC 对抗检定\n"
                 "`.npc list` - 列出当前频道 NPC\n"
@@ -61,20 +62,24 @@ class NPCCommand(BaseCommand):
         
         if npc_cmd == "ra":
             return await self._npc_ra(npc, npc_args)
+        elif npc_cmd == "rha":
+            return await self._npc_rha(npc, npc_args)
         elif npc_cmd == "ad":
             return await self._npc_ad(npc, npc_args)
         elif npc_cmd == "gun":
             return await self._npc_gun(npc, npc_args)
         else:
             # 可能是紧凑格式
-            if sub_args.lower().startswith("ra"):
+            if sub_args.lower().startswith("rha"):
+                return await self._npc_rha(npc, sub_args[3:])
+            elif sub_args.lower().startswith("ra"):
                 return await self._npc_ra(npc, sub_args[2:])
             elif sub_args.lower().startswith("ad"):
                 return await self._npc_ad(npc, sub_args[2:])
             elif sub_args.lower().startswith("gun"):
                 return await self._npc_gun(npc, sub_args[3:])
             else:
-                return CommandResult.text(f"未知 NPC 子命令: {npc_cmd}\n可用: ra, ad, gun")
+                return CommandResult.text(f"未知 NPC 子命令: {npc_cmd}\n可用: ra, rha, ad, gun")
     
     async def _npc_create(self, args: str) -> CommandResult:
         """创建 NPC"""
@@ -255,6 +260,116 @@ class NPCCommand(BaseCommand):
             lines.append(f"第{i+1}次: {roll_detail} → {result.level.value}")
         
         return CommandResult.text("\n".join(lines))
+
+    async def _npc_rha(self, npc, args: str) -> CommandResult:
+        """NPC 暗骰技能检定 - 结果私聊发送给发起者"""
+        args = args.strip()
+        if not args:
+            return CommandResult.text("格式: `.npc <名称> rha <技能>` 或 `.npc <名称> rha p1 t3 <技能>`")
+        
+        # 先尝试空格分隔的格式
+        parts = args.split()
+        bonus, penalty = 0, 0
+        times = 1
+        skill_value = None
+        skill_name = args
+        
+        if len(parts) >= 2:
+            remaining_parts = []
+            for part in parts:
+                bp_match = self._parse_bonus_penalty(part)
+                times_match = self._parse_times(part)
+                if bp_match:
+                    b, p = bp_match
+                    bonus += b
+                    penalty += p
+                elif times_match:
+                    times = times_match
+                else:
+                    remaining_parts.append(part)
+            
+            parts = remaining_parts
+            
+            if not parts:
+                return CommandResult.text("请指定技能名称")
+            
+            if len(parts) >= 2:
+                try:
+                    skill_value = int(parts[-1])
+                    parts = parts[:-1]
+                except ValueError:
+                    pass
+            
+            skill_name = " ".join(parts)
+        else:
+            bonus, penalty, times, skill_name, skill_value = self._parse_ra_compact(args)
+        
+        if not skill_name:
+            return CommandResult.text("请指定技能名称")
+        
+        if skill_value is None:
+            skill_value = npc.get_skill(skill_name)
+            if skill_value is None:
+                return CommandResult.text(f"NPC **{npc.name}** 没有技能: {skill_name}")
+        
+        rule_settings = await self.ctx.db.get_user_rule(self.ctx.user_id)
+        rule = get_rule(rule_settings["rule"], rule_settings["critical"], rule_settings["fumble"])
+        
+        # 多次判定
+        if times > 1:
+            return await self._do_npc_multi_check_hidden(npc, skill_name, skill_value, bonus, penalty, times, rule)
+        
+        # 单次检定
+        if bonus > 0 or penalty > 0:
+            roll_result = DiceRoller.roll_d100_with_bonus(bonus, penalty)
+            roll = roll_result.final
+            roll_detail = str(roll_result)
+        else:
+            roll = DiceRoller.roll_d100()
+            roll_detail = f"D100={roll}"
+        
+        result = rule.check(roll, skill_value)
+        
+        # 私聊发送详细结果
+        private_msg = f"🎲 **{npc.name}** 的 **{skill_name}** 暗骰检定 ({rule.name})\n{roll_detail}/{skill_value}\n{result}"
+        await self.ctx.client.send_direct_message(self.ctx.user_id, private_msg, msg_type=9)
+        
+        # 频道提示
+        return CommandResult.text(f"🎲 NPC **{npc.name}** 进行了 **{skill_name}** 暗骰检定", quote=False)
+    
+    async def _do_npc_multi_check_hidden(
+        self, npc, skill_name: str, target: int,
+        bonus: int, penalty: int, times: int, rule
+    ) -> CommandResult:
+        """NPC 执行多次暗骰检定 - 结果私聊发送"""
+        bp_desc = ""
+        if bonus > 0:
+            bp_desc = f" (奖励骰×{bonus})" if bonus > 1 else " (奖励骰)"
+        elif penalty > 0:
+            bp_desc = f" (惩罚骰×{penalty})" if penalty > 1 else " (惩罚骰)"
+        
+        lines = [f"🎲 **{npc.name}** 的 **{skill_name}** 暗骰连续检定 ×{times}{bp_desc} ({rule.name})"]
+        lines.append(f"目标值: {target}")
+        lines.append("---")
+        
+        for i in range(times):
+            if bonus > 0 or penalty > 0:
+                roll_result = DiceRoller.roll_d100_with_bonus(bonus, penalty)
+                roll = roll_result.final
+                roll_detail = str(roll_result)
+            else:
+                roll = DiceRoller.roll_d100()
+                roll_detail = f"D100={roll}"
+            
+            result = rule.check(roll, target)
+            lines.append(f"第{i+1}次: {roll_detail} → {result.level.value}")
+        
+        # 私聊发送详细结果
+        private_msg = "\n".join(lines)
+        await self.ctx.client.send_direct_message(self.ctx.user_id, private_msg, msg_type=9)
+        
+        # 频道提示
+        return CommandResult.text(f"🎲 NPC **{npc.name}** 进行了 **{skill_name}** 暗骰连续检定 ×{times}", quote=False)
     
     async def _npc_ad(self, npc, args: str) -> CommandResult:
         """NPC 对抗检定"""

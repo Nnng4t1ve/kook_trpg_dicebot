@@ -31,6 +31,12 @@ class HelpCommand(BaseCommand):
 `.sc <成功>/<失败>` - SAN Check (如 .sc0/1d6, .sc1d4/2d6)
 `.gun <技能> [r/p] t<波数>` - 全自动枪械连发 (如 .gun 步枪 r1 t7)
 
+**暗骰命令** (结果私聊发送，频道只显示"XX 进行了暗骰")
+`.rhd <表达式>` - 暗骰 (如 .rhd 1d100, .rhd100, .rhd6+d4+3)
+`.rha <技能>` - 暗骰技能检定 (如 .rha侦查, .rha侦查50)
+`.rha r2 <技能>` - 带奖励骰暗骰检定 (如 .rhar2侦查)
+`.rha p1 <技能> t<轮数>` - 多轮暗骰检定 (如 .rhap1聆听60)
+
 **KP 命令**
 `.check <技能名> [描述]` - 发起检定 (玩家点击按钮骰点)
 `.check sc<成功>/<失败>` - 发起 SAN Check (如 .check sc0/1d6)
@@ -46,6 +52,7 @@ class HelpCommand(BaseCommand):
 `.npc <名称> ra <技能>` - NPC 技能检定 (如 .npc 守卫 ra力量)
 `.npc <名称> gun <技能> [r/p] t<波数>` - NPC 全自动枪械连发
 `.npc <名称> ad @用户 <技能>` - NPC 对抗检定 (如 .npc 守卫 ad @张三 斗殴 闪避 r1 p1)
+`.npc <名称> rha <技能>` - NPC 暗骰检定 (如 .npc 守卫 rha 侦查, .npc 守卫 rha p1 t3 聆听)
 `.npc list` - 列出当前频道 NPC
 `.npc del <名称>` - 删除 NPC
 
@@ -88,7 +95,13 @@ class HelpCommand(BaseCommand):
 **其他命令**
 `.push` - 将下一条消息发布为卡片并置顶
   发送 .push 后，再发送要置顶的内容，机器人会自动转为卡片并置顶
-  支持 KMarkdown 格式，仅限频道使用""")
+  支持 KMarkdown 格式，仅限频道使用
+
+**管理员命令**
+`.admin bind` - 绑定为机器人管理员（仅首次有效）
+`.admin friend list` - 查看好友申请列表
+`.admin friend accept <申请ID>` - 同意好友申请
+`.admin friend reject <申请ID>` - 拒绝好友申请""")
 
 
 @command("ri")

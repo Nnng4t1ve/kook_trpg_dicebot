@@ -11,6 +11,8 @@ from . import npc
 from . import misc
 from . import notebook
 from . import push
+from . import hidden_roll
+from . import admin
 
 __all__ = [
     "CommandRegistry",

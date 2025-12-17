@@ -262,3 +262,47 @@ class KookClient:
                 return True
             logger.error(f"取消置顶失败: {data}")
             return False
+
+    async def get_friend_requests(self) -> list[dict]:
+        """
+        获取好友申请列表
+        
+        Returns:
+            好友申请列表，每项包含 id, friend_info 等
+        """
+        # KOOK API: GET /api/v3/friend?type=request
+        async with self._session.get(
+            f"{self.api_base}/friend",
+            headers=self.headers,
+            params={"type": "request"},
+        ) as resp:
+            data = await resp.json()
+            logger.debug(f"好友申请响应: {data}")
+            if data.get("code") == 0:
+                return data.get("data", {}).get("request", [])
+            logger.error(f"获取好友申请失败: {data}")
+            return []
+
+    async def handle_friend_request(self, request_id: int, accept: bool = True) -> bool:
+        """
+        处理好友申请
+        
+        Args:
+            request_id: 好友申请的 ID（不是用户 ID）
+            accept: True 同意，False 拒绝
+        
+        Returns:
+            是否操作成功
+        """
+        # KOOK API: POST /api/v3/friend/handle-request
+        async with self._session.post(
+            f"{self.api_base}/friend/handle-request",
+            headers=self.headers,
+            json={"id": request_id, "accept": 1 if accept else 0},
+        ) as resp:
+            data = await resp.json()
+            logger.debug(f"处理好友申请响应: {data}")
+            if data.get("code") == 0:
+                return True
+            logger.error(f"处理好友申请失败: {data}")
+            return False

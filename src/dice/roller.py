@@ -90,13 +90,19 @@ class DiceRoller:
         # 所有十位候选
         all_tens = [tens_digit] + extra_tens
 
-        # 根据奖励/惩罚选择十位
+        # 辅助函数：计算十位与个位组合后的实际点数
+        def calc_result(tens: int) -> int:
+            if tens == 0 and ones_digit == 0:
+                return 100
+            return tens * 10 + ones_digit
+
+        # 根据奖励/惩罚选择十位（需要比较拼合后的实际点数）
         if bonus > penalty:
-            # 奖励骰：取最小的十位
-            chosen_tens = min(all_tens)
+            # 奖励骰：取实际点数最小的十位
+            chosen_tens = min(all_tens, key=calc_result)
         elif penalty > bonus:
-            # 惩罚骰：取最大的十位
-            chosen_tens = max(all_tens)
+            # 惩罚骰：取实际点数最大的十位
+            chosen_tens = max(all_tens, key=calc_result)
         else:
             # 相等则抵消，用原始十位
             chosen_tens = tens_digit

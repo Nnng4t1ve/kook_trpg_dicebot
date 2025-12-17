@@ -254,6 +254,15 @@ class Database:
                         ADD COLUMN image_url VARCHAR(512) AFTER created_by
                     """)
 
+                # 机器人设置表（存储管理员等全局配置）
+                await cur.execute("""
+                    CREATE TABLE IF NOT EXISTS bot_settings (
+                        `key` VARCHAR(64) PRIMARY KEY,
+                        `value` VARCHAR(256) NOT NULL,
+                        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+                    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+                """)
+
     # ===== 兼容旧接口 =====
     # 以下方法保持向后兼容，内部使用仓库实现
 
@@ -365,3 +374,25 @@ class Database:
     async def cleanup_expired_reviews(self, expire_hours: int = 24) -> int:
         """清理过期的审核记录"""
         return await self.reviews.cleanup_expired(expire_hours)
+
+    # ===== 机器人设置 =====
+
+    async def get_bot_admin(self) -> str | None:
+        """获取机器人管理员 ID"""
+        async with self._pool.acquire() as conn:
+            async with conn.cursor() as cur:
+                await cur.execute(
+                    "SELECT `value` FROM bot_settings WHERE `key` = 'admin_id'"
+                )
+                row = await cur.fetchone()
+                return row[0] if row else None
+
+    async def set_bot_admin(self, user_id: str):
+        """设置机器人管理员 ID（仅首次有效）"""
+        async with self._pool.acquire() as conn:
+            async with conn.cursor() as cur:
+                # 使用 INSERT IGNORE 确保只有首次插入成功
+                await cur.execute(
+                    "INSERT IGNORE INTO bot_settings (`key`, `value`) VALUES ('admin_id', %s)",
+                    (user_id,)
+                )

@@ -1,4 +1,5 @@
 """主入口"""
+import argparse
 import asyncio
 import sys
 from pathlib import Path
@@ -19,11 +20,25 @@ from src.web import create_app
 from src.web.routers.health import set_start_time
 
 
-async def main():
+def parse_args():
+    """解析命令行参数"""
+    parser = argparse.ArgumentParser(description="COC Dice Bot")
+    parser.add_argument(
+        "--debug", "-d",
+        action="store_true",
+        help="启用 DEBUG 日志级别"
+    )
+    return parser.parse_args()
+
+
+async def main(debug: bool = False):
     """主函数"""
+    # 确定日志级别：命令行 --debug 优先于 .env 配置
+    log_level = "DEBUG" if debug else settings.log_level
+    
     # 使用新的日志配置模块
     configure_logging(
-        level=settings.log_level,
+        level=log_level,
         log_path=settings.log_path,
         rotation="10 MB",
         retention="7 days",
@@ -43,6 +58,10 @@ async def main():
     )
     await db.connect()
     logger.info("MySQL 数据库连接成功")
+    
+    # 加载管理员身份
+    from src.bot.commands.admin import load_admin_id
+    await load_admin_id(db)
     
     # 初始化角色管理器 (LRU 缓存，最多 500 个角色卡)
     char_manager = CharacterManager(db, cache_size=500)
@@ -110,4 +129,5 @@ async def main():
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    args = parse_args()
+    asyncio.run(main(debug=args.debug))
