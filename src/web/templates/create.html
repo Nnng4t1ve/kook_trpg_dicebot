@@ -17,53 +17,62 @@
         <h1>🎲 创建 COC7 角色卡</h1>
         <form id="charForm">
             <input type="hidden" name="token" value="{{ token }}">
-            
+
             <!-- 基本信息 -->
             <div class="card">
                 <h2>📝 基本信息</h2>
                 <label>角色名称 *</label>
                 <input type="text" name="name" id="charName" required placeholder="输入角色名称">
             </div>
-            
+
             <!-- 属性值 -->
             <div class="card">
                 <h2>💪 属性值 <button type="button" class="btn-random" id="randomAllBtn">🎲 随机全部</button></h2>
                 <p class="hint" style="margin-bottom:8px;">勾选属性用于计算职业点数（最多2个）</p>
                 <div class="attr-grid">
                     <div class="attr-item">
-                        <label><span class="attr-label-row"><input type="checkbox" class="attr-checkbox" data-attr="str">STR 力量</span> <span class="formula">3D6×5</span></label>
+                        <label><span class="attr-label-row"><input type="checkbox" class="attr-checkbox"
+                                    data-attr="str">STR 力量</span> <span class="formula">3D6×5</span></label>
                         <input type="number" id="str" value="50" min="1" max="99">
                     </div>
                     <div class="attr-item">
-                        <label><span class="attr-label-row"><input type="checkbox" class="attr-checkbox" data-attr="con">CON 体质</span> <span class="formula">3D6×5</span></label>
+                        <label><span class="attr-label-row"><input type="checkbox" class="attr-checkbox"
+                                    data-attr="con">CON 体质</span> <span class="formula">3D6×5</span></label>
                         <input type="number" id="con" value="50" min="1" max="99">
                     </div>
                     <div class="attr-item">
-                        <label><span class="attr-label-row"><input type="checkbox" class="attr-checkbox" data-attr="siz">SIZ 体型</span> <span class="formula">(2D6+6)×5</span></label>
+                        <label><span class="attr-label-row"><input type="checkbox" class="attr-checkbox"
+                                    data-attr="siz">SIZ 体型</span> <span class="formula">(2D6+6)×5</span></label>
                         <input type="number" id="siz" value="50" min="1" max="99">
                     </div>
                     <div class="attr-item">
-                        <label><span class="attr-label-row"><input type="checkbox" class="attr-checkbox" data-attr="dex">DEX 敏捷</span> <span class="formula">3D6×5</span></label>
+                        <label><span class="attr-label-row"><input type="checkbox" class="attr-checkbox"
+                                    data-attr="dex">DEX 敏捷</span> <span class="formula">3D6×5</span></label>
                         <input type="number" id="dex" value="50" min="1" max="99">
                     </div>
                     <div class="attr-item">
-                        <label><span class="attr-label-row"><input type="checkbox" class="attr-checkbox" data-attr="app">APP 外貌</span> <span class="formula">3D6×5</span></label>
+                        <label><span class="attr-label-row"><input type="checkbox" class="attr-checkbox"
+                                    data-attr="app">APP 外貌</span> <span class="formula">3D6×5</span></label>
                         <input type="number" id="app" value="50" min="1" max="99">
                     </div>
                     <div class="attr-item">
-                        <label><span class="attr-label-row"><input type="checkbox" class="attr-checkbox" data-attr="int">INT 智力</span> <span class="formula">(2D6+6)×5</span></label>
+                        <label><span class="attr-label-row"><input type="checkbox" class="attr-checkbox"
+                                    data-attr="int">INT 智力</span> <span class="formula">(2D6+6)×5</span></label>
                         <input type="number" id="int" value="50" min="1" max="99">
                     </div>
                     <div class="attr-item">
-                        <label><span class="attr-label-row"><input type="checkbox" class="attr-checkbox" data-attr="pow">POW 意志</span> <span class="formula">3D6×5</span></label>
+                        <label><span class="attr-label-row"><input type="checkbox" class="attr-checkbox"
+                                    data-attr="pow">POW 意志</span> <span class="formula">3D6×5</span></label>
                         <input type="number" id="pow" value="50" min="1" max="99">
                     </div>
                     <div class="attr-item">
-                        <label><span class="attr-label-row"><input type="checkbox" class="attr-checkbox" data-attr="edu">EDU 教育</span> <span class="formula">(2D6+6)×5</span></label>
+                        <label><span class="attr-label-row"><input type="checkbox" class="attr-checkbox"
+                                    data-attr="edu">EDU 教育</span> <span class="formula">(2D6+6)×5</span></label>
                         <input type="number" id="edu" value="50" min="1" max="99">
                     </div>
                     <div class="attr-item">
-                        <label><span class="attr-label-row"><span style="width:16px;display:inline-block;"></span>LUK 幸运</span> <span class="formula">3D6×5</span></label>
+                        <label><span class="attr-label-row"><span style="width:16px;display:inline-block;"></span>LUK
+                                幸运</span> <span class="formula">3D6×5</span></label>
                         <input type="number" id="luk" value="50" min="1" max="99">
                     </div>
                 </div>
@@ -84,7 +93,7 @@
                     </div>
                 </div>
             </div>
-            
+
             <!-- 派生属性 -->
             <div class="card">
                 <h2>❤️ 派生属性 (自动计算)</h2>
@@ -115,7 +124,7 @@
                     </div>
                 </div>
             </div>
-            
+
             <!-- 技能 -->
             <div class="card">
                 <h2>🎯 技能 <span class="hint">(基础+职业+兴趣=成功率)</span></h2>
@@ -123,7 +132,7 @@
                     <p class="hint">加载中...</p>
                 </div>
             </div>
-            
+
             <!-- 物品栏 -->
             <div class="card">
                 <h2>🎒 随身物品（使用右侧栏位需要背包）</h2>
@@ -154,42 +163,50 @@
                     <tbody>
                         <tr class="backstory-row">
                             <td class="backstory-label">形象描述</td>
-                            <td><textarea class="backstory-input" name="appearance" placeholder="描述角色的外貌特征..."></textarea></td>
+                            <td><textarea class="backstory-input" name="appearance"
+                                    placeholder="描述角色的外貌特征..."></textarea></td>
                             <td><input type="checkbox" class="key-connection" name="appearance_key"></td>
                         </tr>
                         <tr class="backstory-row">
                             <td class="backstory-label">思想与信念</td>
-                            <td><textarea class="backstory-input" name="ideology" placeholder="角色的信仰、价值观..."></textarea></td>
+                            <td><textarea class="backstory-input" name="ideology" placeholder="角色的信仰、价值观..."></textarea>
+                            </td>
                             <td><input type="checkbox" class="key-connection" name="ideology_key"></td>
                         </tr>
                         <tr class="backstory-row">
                             <td class="backstory-label">重要之人</td>
-                            <td><textarea class="backstory-input" name="significant_people" placeholder="对角色重要的人..."></textarea></td>
+                            <td><textarea class="backstory-input" name="significant_people"
+                                    placeholder="对角色重要的人..."></textarea></td>
                             <td><input type="checkbox" class="key-connection" name="significant_people_key"></td>
                         </tr>
                         <tr class="backstory-row">
                             <td class="backstory-label">意义非凡之地</td>
-                            <td><textarea class="backstory-input" name="meaningful_locations" placeholder="对角色有特殊意义的地点..."></textarea></td>
+                            <td><textarea class="backstory-input" name="meaningful_locations"
+                                    placeholder="对角色有特殊意义的地点..."></textarea></td>
                             <td><input type="checkbox" class="key-connection" name="meaningful_locations_key"></td>
                         </tr>
                         <tr class="backstory-row">
                             <td class="backstory-label">宝贵之物</td>
-                            <td><textarea class="backstory-input" name="treasured_possessions" placeholder="角色珍视的物品..."></textarea></td>
+                            <td><textarea class="backstory-input" name="treasured_possessions"
+                                    placeholder="角色珍视的物品..."></textarea></td>
                             <td><input type="checkbox" class="key-connection" name="treasured_possessions_key"></td>
                         </tr>
                         <tr class="backstory-row">
                             <td class="backstory-label">特质</td>
-                            <td><textarea class="backstory-input" name="traits" placeholder="角色的性格特点..."></textarea></td>
+                            <td><textarea class="backstory-input" name="traits" placeholder="角色的性格特点..."></textarea>
+                            </td>
                             <td><input type="checkbox" class="key-connection" name="traits_key"></td>
                         </tr>
                         <tr class="backstory-row">
                             <td class="backstory-label">伤口和伤疤</td>
-                            <td><textarea class="backstory-input" name="injuries" placeholder="角色身上的伤痕..."></textarea></td>
+                            <td><textarea class="backstory-input" name="injuries" placeholder="角色身上的伤痕..."></textarea>
+                            </td>
                             <td><input type="checkbox" class="key-connection" name="injuries_key"></td>
                         </tr>
                         <tr class="backstory-row">
                             <td class="backstory-label">恐惧症和躁狂症</td>
-                            <td><textarea class="backstory-input" name="phobias" placeholder="角色的恐惧或狂躁..."></textarea></td>
+                            <td><textarea class="backstory-input" name="phobias" placeholder="角色的恐惧或狂躁..."></textarea>
+                            </td>
                             <td><input type="checkbox" class="key-connection" name="phobias_key"></td>
                         </tr>
                     </tbody>
@@ -205,12 +222,13 @@
             <button type="submit" class="btn" id="submitBtn" disabled>✨ 创建角色卡 (需先审核通过)</button>
             <button type="button" class="btn btn-secondary" id="exportBtn">📋 角色卡审核</button>
         </form>
-        
+
         <div id="result" style="display:none;"></div>
         <div id="exportResult" style="display:none;" class="card">
             <h2>📋 审核指令</h2>
             <p class="hint" style="margin-bottom:8px;">在 KOOK 中发送以下指令发起审核，KP 审核通过后即可创建角色卡</p>
-            <textarea id="exportText" readonly style="width:100%;min-height:60px;margin-top:8px;background:rgba(0,0,0,0.3);color:#fff;border:none;border-radius:6px;padding:8px;"></textarea>
+            <textarea id="exportText" readonly
+                style="width:100%;min-height:60px;margin-top:8px;background:rgba(0,0,0,0.3);color:#fff;border:none;border-radius:6px;padding:8px;"></textarea>
             <button type="button" class="btn btn-secondary" id="copyBtn" style="margin-top:8px;">复制</button>
         </div>
     </div>
@@ -220,7 +238,7 @@
         const APP_TOKEN = '{{ token }}';
         const APP_USER_ID = '{{ user_id }}';
     </script>
-    
+
     <!-- JavaScript 模块 -->
     <script src="/static/js/create-config.js"></script>
     <script src="/static/js/create-utils.js"></script>

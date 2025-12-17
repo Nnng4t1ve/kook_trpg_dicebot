@@ -11,7 +11,7 @@ class KookClient:
     """KOOK WebSocket 客户端"""
     
     def __init__(self, token: str, api_base: str = "https://www.kookapp.cn/api/v3"):
-        self.token = token
+        self._token = token  # 使用私有属性存储 token
         self.api_base = api_base
         self._session: Optional[aiohttp.ClientSession] = None
         self._ws: Optional[aiohttp.ClientWebSocketResponse] = None
@@ -23,7 +23,15 @@ class KookClient:
     
     @property
     def headers(self) -> dict:
-        return {"Authorization": f"Bot {self.token}"}
+        return {"Authorization": f"Bot {self._token}"}
+    
+    def __repr__(self) -> str:
+        """安全的字符串表示，不暴露 token"""
+        return f"KookClient(api_base={self.api_base!r}, connected={self._ws is not None and not self._ws.closed})"
+    
+    def __str__(self) -> str:
+        """安全的字符串表示"""
+        return self.__repr__()
     
     async def start(self, message_handler: Callable):
         """启动客户端"""
@@ -61,10 +69,18 @@ class KookClient:
                 raise Exception(f"获取网关失败: {data['message']}")
             return data["data"]["url"]
     
+    def _mask_gateway_url(self, url: str) -> str:
+        """掩码网关 URL 中的 token 参数"""
+        if "token=" in url:
+            # 只显示 URL 的基础部分，隐藏 token
+            base_url = url.split("token=")[0]
+            return f"{base_url}token=****"
+        return url
+    
     async def _connect(self):
         """连接 WebSocket"""
         gateway = await self._get_gateway()
-        logger.info(f"连接网关: {gateway}")
+        logger.info(f"连接网关: {self._mask_gateway_url(gateway)}")
         
         async with self._session.ws_connect(gateway) as ws:
             self._ws = ws

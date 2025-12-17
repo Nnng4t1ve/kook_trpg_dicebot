@@ -1,30 +1,26 @@
-# COC TRPG Dice Bot for KOOK
+# 🎲 COC TRPG Dice Bot for KOOK
 
-一个功能完善的 KOOK 平台 COC (Call of Cthulhu) TRPG 骰子机器人。
+一个功能（待）完善的 KOOK 平台 COC (Call of Cthulhu) TRPG 骰子机器人。
 
-## 功能特性
+## ✨ 功能特性
 
 ### 🎲 骰点系统
 - 标准骰点语法 (`1d100`, `3d6`, `2d6+3`, `1d6+1d4`)
 - 奖励骰/惩罚骰支持 (`r1`, `r2`, `p1`, `p2`)
 - 紧凑格式支持 (`.rd100`, `.ra侦查50`)
 
-### � 角色卡管理定
+### 👤 角色卡管理
 - Web 界面在线创建角色卡
 - JSON 格式导入/导出
-- 多角色切换
-- 用户数据隔离
+- 多角色切换与用户数据隔离
+- 在线车卡与快捷审卡系统
 
 ### 🎯 技能检定
 - COC6/COC7 规则支持
 - 大成功/大失败村规自定义
 - 技能别名系统 (力量/力/str → STR)
-- 奖励骰/惩罚骰
-
-### 🖱️ 交互式检定
-- KP 发起检定，玩家点击按钮骰点
+- 交互式检定 (KP 发起，玩家点击按钮骰点)
 - 对抗检定 (支持不同技能对抗)
-- 检定结果卡片展示
 
 ### 💀 SAN Check
 - 支持骰点表达式 (`.sc 0/1d6`, `.sc 1d4/2d6`)
@@ -37,14 +33,14 @@
 - D100 > 当前技能值 = 成功
 - 成功后 +1D10
 
-### ⚙️ 角色卡创建系统
-- 🎲 随机属性生成 (COC7 标准公式)
-- 自动计算派生属性 (HP/MP/SAN/MOV/体格/伤害加值)
-- 职业点数/兴趣点数计算
-- 可选属性勾选计算职业点数
-- 自定义技能名称和初始值
+### 🤖 NPC 系统
+- 快速创建 NPC (支持难度模板)
+- NPC 技能检定与对抗
+- 按频道隔离存储
 
-## 命令列表
+---
+
+## 📋 命令列表
 
 ### 骰点命令
 
@@ -66,7 +62,7 @@
 | `.ad @用户 <技能>` | 对抗检定 | `.ad @张三 力量` |
 | `.ad @用户 <技能1> <技能2>` | 不同技能对抗 | `.ad @张三 斗殴 闪避` |
 | `.ad npc <NPC名> <技能>` | 向 NPC 发起对抗 | `.ad npc 守卫 斗殴` |
-| `.ri @用户1 @用户2 npc <NPC名>` | 先攻顺序表 (按 DEX 排序) | `.ri @张三 @李四 npc 守卫` |
+| `.ri @用户1 @用户2 npc <NPC名>` | 先攻顺序表 | `.ri @张三 @李四 npc 守卫` |
 
 ### NPC 命令
 
@@ -74,17 +70,12 @@
 |------|------|------|
 | `.npc create <名称> [模板]` | 创建 NPC | `.npc create 守卫 2` |
 | `.npc <名称> ra <技能>` | NPC 技能检定 | `.npc 守卫 ra力量` |
-| `.npc <名称> ad @用户 <技能>` | NPC 向玩家发起对抗 | `.npc 守卫 ad @张三 斗殴 闪避 r1 p1` |
+| `.npc <名称> ad @用户 <技能>` | NPC 向玩家发起对抗 | `.npc 守卫 ad @张三 斗殴` |
 | `.npc list` | 列出当前频道 NPC | `.npc list` |
 | `.npc del <名称>` | 删除 NPC | `.npc del 守卫` |
 | `.npc <名称>` | 查看 NPC 属性 | `.npc 守卫` |
 
-**NPC 模板说明:**
-- `1` = 普通: 属性 40-60，技能 40-50
-- `2` = 困难: 属性 50-70，技能 50-60
-- `3` = 极难: 属性 60-80，技能 60-70
-
-所有数值为 5 的倍数，NPC 按频道隔离存储。
+**NPC 模板:** `1`=普通(40-60) / `2`=困难(50-70) / `3`=极难(60-80)
 
 ### 角色卡命令
 
@@ -97,6 +88,13 @@
 | `.pc switch <名称>` | 切换角色卡 | `.pc switch 调查员` |
 | `.pc show` | 显示当前角色 | `.pc show` |
 | `.pc del <名称>` | 删除角色卡 | `.pc del 调查员` |
+| `.cc <角色名> @KP` | 发起角色卡审核 | `.cc 张三 @KP` |
+
+**角色卡审核流程:**
+1. 在网页上创建角色卡并提交审核
+2. 使用 `.cc <角色名> @KP` 发起审核，@ 指定的 KP
+3. KP 点击卡片按钮进行审核（通过/拒绝）
+4. 审核通过后在网页点击创建，自动保存至数据库无需手动导入
 
 ### 规则命令
 
@@ -107,7 +105,16 @@
 | `.rule crit <值>` | 设置大成功阈值 | `.rule crit 5` |
 | `.rule fumble <值>` | 设置大失败阈值 | `.rule fumble 96` |
 
-## 快速开始
+---
+
+## 🚀 快速开始
+
+### 环境
+
+- Python 3.10
+- MySQL 8.4
+
+其他版本没有试过，这是我个人使用的版本，如果有问题请提 Issue
 
 ### 1. 安装依赖
 
@@ -115,13 +122,13 @@
 pip install -r requirements.txt
 ```
 
-### 2. 创建 MySQL 数据库
+### 2. 创建数据库
 
 ```sql
-CREATE DATABASE trpg_dicebot CHARACTER SET utf8mb4;
+CREATE DATABASE trpg_dicebot CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 ```
 
-### 3. 配置
+### 3. 配置环境变量
 
 复制 `.env.example` 为 `.env` 并填写:
 
@@ -146,95 +153,132 @@ WEB_BASE_URL=http://your-server-ip:8080
 python -m src.main
 ```
 
-## Docker 部署
+---
+
+## 🐳 Docker 部署
 
 ### 使用 Docker Compose (推荐)
 
 ```bash
-# 1. 配置环境变量
+# 配置环境变量
 cp .env.example .env
-# 编辑 .env 填写 KOOK_TOKEN, DB_PASSWORD, WEB_BASE_URL
+# 编辑 .env 填写配置
 
-# 2. 启动服务
+# 启动服务
 docker-compose up -d
 
-# 3. 查看日志
+# 查看日志
 docker-compose logs -f bot
 ```
 
 ### 单独构建镜像
 
 ```bash
-# 构建
 docker build -t coc-dice-bot .
 
-# 运行 (需要外部 MySQL)
 docker run -d \
   --name coc-dice-bot \
-  -p 11021:11021 \
+  -p 8080:8080 \
   -e KOOK_TOKEN=your_token \
   -e DB_HOST=your_mysql_host \
   -e DB_PASSWORD=your_password \
-  -e WEB_BASE_URL=http://your-ip:11021 \
+  -e WEB_BASE_URL=http://your-ip:8080 \
   coc-dice-bot
 ```
 
-## 技术架构
+---
 
-- **语言**: Python 3.10+
-- **异步框架**: asyncio + aiohttp
-- **数据存储**: MySQL (aiomysql)
-- **Web 框架**: FastAPI + Jinja2
-- **日志**: loguru
-
-## 项目结构
+## 🏗️ 项目架构
 
 ```
-trpg_dice_bot_in_kook/
-├── src/
-│   ├── main.py              # 入口
-│   ├── config.py            # 配置
-│   ├── bot/                 # Bot 核心
-│   │   ├── client.py        # WebSocket 客户端
-│   │   ├── handler.py       # 消息处理
-│   │   ├── card_builder.py  # 卡片构建
-│   │   └── check_manager.py # 检定管理
-│   ├── dice/                # 骰点系统
-│   │   ├── parser.py        # 表达式解析
-│   │   ├── roller.py        # 骰点执行
-│   │   ├── rules.py         # COC 规则
-│   │   └── skill_alias.py   # 技能别名
-│   ├── character/           # 角色卡
-│   │   ├── models.py        # 数据模型
-│   │   ├── manager.py       # 角色管理
-│   │   └── importer.py      # 导入器
-│   ├── storage/             # 数据存储
-│   │   └── database.py      # MySQL
-│   ├── data/                # 数据定义
-│   │   ├── skills.py        # 技能列表
-│   │   └── madness.py       # 疯狂症状
-│   └── web/                 # Web 服务
-│       ├── server.py        # FastAPI
-│       └── templates/       # 页面模板
-├── requirements.txt
-└── .env.example
+src/
+├── main.py                    # 应用入口
+├── config.py                  # 配置管理 (Pydantic Settings)
+│
+├── bot/                       # Bot 核心模块
+│   ├── client.py              # KOOK WebSocket 客户端
+│   ├── handler.py             # 消息处理器
+│   ├── check_manager.py       # 检定管理器
+│   └── commands/              # 命令系统
+│       ├── base.py            # 命令基类 (BaseCommand)
+│       ├── registry.py        # 命令注册器
+│       └── handlers/          # 具体命令实现
+│
+├── cards/                     # 卡片消息系统
+│   ├── components.py          # 基础组件 (CardComponents)
+│   ├── builder.py             # 卡片构建器 (CardBuilder)
+│   └── templates/             # 卡片模板
+│
+├── character/                 # 角色系统
+│   ├── models.py              # 角色数据模型
+│   ├── manager.py             # 角色管理器 (带缓存)
+│   ├── importer.py            # 角色导入器
+│   └── npc.py                 # NPC 管理
+│
+├── dice/                      # 骰点系统
+│   ├── parser.py              # 表达式解析器
+│   ├── roller.py              # 骰点执行器
+│   ├── rules.py               # COC 规则引擎
+│   └── skill_alias.py         # 技能别名映射
+│
+├── storage/                   # 数据存储层
+│   ├── database.py            # 数据库连接管理
+│   └── repositories/          # 数据仓库
+│       └── base.py            # 基础仓库类 (CRUD)
+│
+├── services/                  # 业务服务
+│   └── token.py               # Token 服务 (链接生成/验证)
+│
+├── logging/                   # 日志系统
+│   ├── config.py              # 日志配置
+│   └── handlers.py            # 自定义处理器
+│
+├── data/                      # 静态数据
+│   ├── skills.py              # 技能定义
+│   ├── madness.py             # 疯狂症状表
+│   └── npc_status.py          # NPC 状态描述
+│
+└── web/                       # Web 服务
+    ├── app.py                 # FastAPI 应用工厂
+    ├── server.py              # 服务器启动
+    ├── middleware.py          # 中间件
+    ├── dependencies.py        # 依赖注入
+    ├── routers/               # API 路由
+    │   ├── character.py       # 角色 API
+    │   ├── review.py          # 审核 API
+    │   ├── grow.py            # 成长 API
+    │   ├── health.py          # 健康检查
+    │   └── pages.py           # 页面路由
+    ├── templates/             # Jinja2 模板
+    └── static/                # 静态资源
 ```
 
-## COC 规则说明
+---
+
+## 📖 COC 规则说明
 
 ### COC7 规则 (默认)
 
-- **大成功**: 1-5 (可配置)
-- **大失败**: 技能值 < 50 时 96-100，≥ 50 时仅 100
-- **成功等级**: 极难(≤1/5) / 困难(≤1/2) / 普通(≤技能值)
+| 判定 | 条件 |
+|------|------|
+| 大成功 | 1-5 (可配置) |
+| 极难成功 | ≤ 技能值/5 |
+| 困难成功 | ≤ 技能值/2 |
+| 普通成功 | ≤ 技能值 |
+| 大失败 | 技能值<50: 96-100 / 技能值≥50: 仅100 |
 
 ### COC6 规则
 
-- **大成功**: 1-5 (可配置)
-- **大失败**: 96-100 (可配置)
-- **成功等级**: 成功(≤技能值) / 失败(>技能值)
+| 判定 | 条件 |
+|------|------|
+| 大成功 | 1-5 (可配置) |
+| 成功 | ≤ 技能值 |
+| 失败 | > 技能值 |
+| 大失败 | 96-100 (可配置) |
 
-## 角色卡 JSON 格式
+---
+
+## 📝 角色卡 JSON 格式
 
 ```json
 {
@@ -255,6 +299,17 @@ trpg_dice_bot_in_kook/
 }
 ```
 
-## License
+---
 
-MIT License
+## 🔧 技术栈
+
+| 组件 | 技术 |
+|------|------|
+| 语言 | Python 3.10 |
+| 异步框架 | asyncio + aiohttp |
+| Web 框架 | FastAPI + Jinja2 |
+| 数据库 | MySQL (aiomysql) |
+| 配置管理 | Pydantic Settings |
+| 日志 | Loguru |
+
+---

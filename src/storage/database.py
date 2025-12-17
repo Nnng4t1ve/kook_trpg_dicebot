@@ -1,27 +1,68 @@
-"""数据库操作 - MySQL"""
+"""数据库连接管理 - 重构版"""
 import json
+from typing import Optional
+
 import aiomysql
-from typing import List, Optional
+
 from ..character.models import Character
+from .repositories import (
+    CharacterRepository,
+    NPCRepository,
+    ReviewRepository,
+    UserSettingsRepository,
+)
 
 
 class Database:
-    """MySQL 数据库操作"""
+    """
+    MySQL 数据库管理器
+    
+    提供连接池管理、表结构初始化和仓库实例获取
+    """
 
-    def __init__(self, host: str, port: int, user: str, password: str, database: str):
+    def __init__(
+        self,
+        host: str,
+        port: int,
+        user: str,
+        password: str,
+        database: str,
+        min_pool_size: int = 1,
+        max_pool_size: int = 10,
+    ):
         self.host = host
         self.port = port
         self.user = user
-        self.password = password
+        self._password = password  # 使用私有属性存储密码
         self.database = database
+        self.min_pool_size = min_pool_size
+        self.max_pool_size = max_pool_size
+        
         self._pool: Optional[aiomysql.Pool] = None
+        
+        # 仓库实例（延迟初始化）
+        self._character_repo: Optional[CharacterRepository] = None
+        self._npc_repo: Optional[NPCRepository] = None
+        self._user_settings_repo: Optional[UserSettingsRepository] = None
+        self._review_repo: Optional[ReviewRepository] = None
+    
+    @property
+    def password(self) -> str:
+        """获取密码（内部使用）"""
+        return self._password
+    
+    def __repr__(self) -> str:
+        """安全的字符串表示，不暴露密码"""
+        return f"Database(host={self.host!r}, port={self.port}, user={self.user!r}, database={self.database!r})"
+    
+    def __str__(self) -> str:
+        """安全的字符串表示"""
+        return self.__repr__()
 
     async def connect(self):
         """连接数据库，如果数据库不存在则自动创建"""
-        # 先连接不指定数据库，创建数据库
         await self._ensure_database_exists()
         
-        # 再连接到指定数据库
         self._pool = await aiomysql.create_pool(
             host=self.host,
             port=self.port,
@@ -30,8 +71,8 @@ class Database:
             db=self.database,
             charset="utf8mb4",
             autocommit=True,
-            minsize=1,
-            maxsize=10,
+            minsize=self.min_pool_size,
+            maxsize=self.max_pool_size,
         )
         await self._init_tables()
     
@@ -59,6 +100,50 @@ class Database:
         if self._pool:
             self._pool.close()
             await self._pool.wait_closed()
+            self._pool = None
+            
+            # 清理仓库实例
+            self._character_repo = None
+            self._npc_repo = None
+            self._user_settings_repo = None
+            self._review_repo = None
+
+    @property
+    def pool(self) -> aiomysql.Pool:
+        """获取连接池"""
+        if not self._pool:
+            raise RuntimeError("Database not connected. Call connect() first.")
+        return self._pool
+
+    # ===== 仓库实例获取 =====
+    
+    @property
+    def characters(self) -> CharacterRepository:
+        """获取角色仓库"""
+        if not self._character_repo:
+            self._character_repo = CharacterRepository(self.pool)
+        return self._character_repo
+    
+    @property
+    def npcs(self) -> NPCRepository:
+        """获取 NPC 仓库"""
+        if not self._npc_repo:
+            self._npc_repo = NPCRepository(self.pool)
+        return self._npc_repo
+    
+    @property
+    def user_settings(self) -> UserSettingsRepository:
+        """获取用户设置仓库"""
+        if not self._user_settings_repo:
+            self._user_settings_repo = UserSettingsRepository(self.pool)
+        return self._user_settings_repo
+    
+    @property
+    def reviews(self) -> ReviewRepository:
+        """获取审核仓库"""
+        if not self._review_repo:
+            self._review_repo = ReviewRepository(self.pool)
+        return self._review_repo
 
     async def _init_tables(self):
         """初始化表结构"""
@@ -113,90 +198,36 @@ class Database:
                     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
                 """)
 
+    # ===== 兼容旧接口 =====
+    # 以下方法保持向后兼容，内部使用仓库实现
+
     async def save_character(self, char: Character):
         """保存角色卡"""
-        async with self._pool.acquire() as conn:
-            async with conn.cursor() as cur:
-                await cur.execute(
-                    """INSERT INTO characters (user_id, name, data) 
-                       VALUES (%s, %s, %s) AS new_data
-                       ON DUPLICATE KEY UPDATE data = new_data.data""",
-                    (char.user_id, char.name, char.to_json()),
-                )
+        await self.characters.save(char)
 
     async def get_character(self, user_id: str, name: str) -> Optional[Character]:
         """获取角色卡"""
-        async with self._pool.acquire() as conn:
-            async with conn.cursor() as cur:
-                await cur.execute(
-                    "SELECT data FROM characters WHERE user_id = %s AND name = %s",
-                    (user_id, name),
-                )
-                row = await cur.fetchone()
-                if row:
-                    data = json.loads(row[0]) if isinstance(row[0], str) else row[0]
-                    return Character.from_dict(data)
-        return None
+        return await self.characters.find_by_user_and_name(user_id, name)
 
-    async def list_characters(self, user_id: str) -> List[Character]:
+    async def list_characters(self, user_id: str):
         """列出用户所有角色卡"""
-        chars = []
-        async with self._pool.acquire() as conn:
-            async with conn.cursor() as cur:
-                await cur.execute(
-                    "SELECT data FROM characters WHERE user_id = %s", (user_id,)
-                )
-                rows = await cur.fetchall()
-                for row in rows:
-                    data = json.loads(row[0]) if isinstance(row[0], str) else row[0]
-                    chars.append(Character.from_dict(data))
-        return chars
+        return await self.characters.find_by_user(user_id)
 
     async def delete_character(self, user_id: str, name: str) -> bool:
         """删除角色卡"""
-        async with self._pool.acquire() as conn:
-            async with conn.cursor() as cur:
-                await cur.execute(
-                    "DELETE FROM characters WHERE user_id = %s AND name = %s",
-                    (user_id, name),
-                )
-                return cur.rowcount > 0
+        return await self.characters.delete_by_user_and_name(user_id, name)
 
     async def get_active_character(self, user_id: str) -> Optional[str]:
         """获取当前激活角色名"""
-        async with self._pool.acquire() as conn:
-            async with conn.cursor() as cur:
-                await cur.execute(
-                    "SELECT active_character FROM user_settings WHERE user_id = %s",
-                    (user_id,),
-                )
-                row = await cur.fetchone()
-                return row[0] if row else None
+        return await self.user_settings.get_active_character(user_id)
 
     async def set_active_character(self, user_id: str, name: str):
         """设置当前激活角色"""
-        async with self._pool.acquire() as conn:
-            async with conn.cursor() as cur:
-                await cur.execute(
-                    """INSERT INTO user_settings (user_id, active_character) 
-                       VALUES (%s, %s) AS new_data
-                       ON DUPLICATE KEY UPDATE active_character = new_data.active_character""",
-                    (user_id, name),
-                )
+        await self.user_settings.set_active_character(user_id, name)
 
     async def get_user_rule(self, user_id: str) -> dict:
         """获取用户规则设置"""
-        async with self._pool.acquire() as conn:
-            async with conn.cursor() as cur:
-                await cur.execute(
-                    """SELECT rule_name, critical_threshold, fumble_threshold 
-                       FROM user_settings WHERE user_id = %s""",
-                    (user_id,),
-                )
-                row = await cur.fetchone()
-                if row:
-                    return {"rule": row[0], "critical": row[1], "fumble": row[2]}
-        return {"rule": "coc7", "critical": 5, "fumble": 96}
+        return await self.user_settings.get_rule(user_id)
 
     async def set_user_rule(
         self,
@@ -206,88 +237,27 @@ class Database:
         fumble: int = None,
     ):
         """设置用户规则"""
-        current = await self.get_user_rule(user_id)
-        rule = rule or current["rule"]
-        critical = critical if critical is not None else current["critical"]
-        fumble = fumble if fumble is not None else current["fumble"]
-
-        async with self._pool.acquire() as conn:
-            async with conn.cursor() as cur:
-                await cur.execute(
-                    """INSERT INTO user_settings 
-                       (user_id, rule_name, critical_threshold, fumble_threshold)
-                       VALUES (%s, %s, %s, %s) AS new_data
-                       ON DUPLICATE KEY UPDATE 
-                       rule_name = new_data.rule_name,
-                       critical_threshold = new_data.critical_threshold,
-                       fumble_threshold = new_data.fumble_threshold""",
-                    (user_id, rule, critical, fumble),
-                )
-
-
-    # ===== NPC 操作 =====
+        await self.user_settings.set_rule(user_id, rule, critical, fumble)
 
     async def save_npc(self, channel_id: str, npc: Character, template_id: int = 1):
         """保存 NPC"""
-        async with self._pool.acquire() as conn:
-            async with conn.cursor() as cur:
-                await cur.execute(
-                    """INSERT INTO npcs (channel_id, name, template_id, data) 
-                       VALUES (%s, %s, %s, %s) AS new_data
-                       ON DUPLICATE KEY UPDATE 
-                       template_id = new_data.template_id,
-                       data = new_data.data""",
-                    (channel_id, npc.name, template_id, npc.to_json()),
-                )
+        await self.npcs.save(channel_id, npc, template_id)
 
     async def get_npc(self, channel_id: str, name: str) -> Optional[Character]:
         """获取 NPC"""
-        async with self._pool.acquire() as conn:
-            async with conn.cursor() as cur:
-                await cur.execute(
-                    "SELECT data FROM npcs WHERE channel_id = %s AND name = %s",
-                    (channel_id, name),
-                )
-                row = await cur.fetchone()
-                if row:
-                    data = json.loads(row[0]) if isinstance(row[0], str) else row[0]
-                    return Character.from_dict(data)
-        return None
+        return await self.npcs.find_by_channel_and_name(channel_id, name)
 
-    async def list_npcs(self, channel_id: str) -> List[Character]:
+    async def list_npcs(self, channel_id: str):
         """列出频道所有 NPC"""
-        npcs = []
-        async with self._pool.acquire() as conn:
-            async with conn.cursor() as cur:
-                await cur.execute(
-                    "SELECT data FROM npcs WHERE channel_id = %s", (channel_id,)
-                )
-                rows = await cur.fetchall()
-                for row in rows:
-                    data = json.loads(row[0]) if isinstance(row[0], str) else row[0]
-                    npcs.append(Character.from_dict(data))
-        return npcs
+        return await self.npcs.find_by_channel(channel_id)
 
     async def delete_npc(self, channel_id: str, name: str) -> bool:
         """删除 NPC"""
-        async with self._pool.acquire() as conn:
-            async with conn.cursor() as cur:
-                await cur.execute(
-                    "DELETE FROM npcs WHERE channel_id = %s AND name = %s",
-                    (channel_id, name),
-                )
-                return cur.rowcount > 0
+        return await self.npcs.delete_by_channel_and_name(channel_id, name)
 
     async def clear_channel_npcs(self, channel_id: str) -> int:
         """清空频道所有 NPC"""
-        async with self._pool.acquire() as conn:
-            async with conn.cursor() as cur:
-                await cur.execute(
-                    "DELETE FROM npcs WHERE channel_id = %s", (channel_id,)
-                )
-                return cur.rowcount
-
-    # ===== 角色卡审核 =====
+        return await self.npcs.clear_channel(channel_id)
 
     async def save_character_review(
         self,
@@ -298,78 +268,44 @@ class Database:
         image_url: str = None,
     ):
         """保存角色卡审核记录"""
-        async with self._pool.acquire() as conn:
-            async with conn.cursor() as cur:
-                await cur.execute(
-                    """INSERT INTO character_reviews 
-                       (char_name, user_id, image_data, image_url, char_data, approved) 
-                       VALUES (%s, %s, %s, %s, %s, FALSE) AS new_data
-                       ON DUPLICATE KEY UPDATE 
-                       image_data = new_data.image_data,
-                       image_url = new_data.image_url,
-                       char_data = new_data.char_data,
-                       approved = FALSE,
-                       created_at = CURRENT_TIMESTAMP""",
-                    (char_name, user_id, image_data, image_url, json.dumps(char_data)),
-                )
+        from .repositories import CharacterReview
+        review = CharacterReview(
+            char_name=char_name,
+            user_id=user_id,
+            image_data=image_data,
+            image_url=image_url,
+            char_data=char_data,
+            approved=False,
+        )
+        await self.reviews.save(review)
 
     async def get_character_review(self, char_name: str) -> Optional[dict]:
         """获取角色卡审核记录"""
-        async with self._pool.acquire() as conn:
-            async with conn.cursor() as cur:
-                await cur.execute(
-                    """SELECT char_name, user_id, image_data, image_url, char_data, approved, created_at
-                       FROM character_reviews WHERE char_name = %s""",
-                    (char_name,),
-                )
-                row = await cur.fetchone()
-                if row:
-                    return {
-                        "char_name": row[0],
-                        "user_id": row[1],
-                        "image_data": row[2],
-                        "image_url": row[3],
-                        "char_data": json.loads(row[4]) if isinstance(row[4], str) else row[4],
-                        "approved": bool(row[5]),
-                        "created_at": row[6],
-                    }
+        review = await self.reviews.find_by_char_name(char_name)
+        if review:
+            return {
+                "char_name": review.char_name,
+                "user_id": review.user_id,
+                "image_data": review.image_data,
+                "image_url": review.image_url,
+                "char_data": review.char_data,
+                "approved": review.approved,
+                "created_at": review.created_at,
+            }
         return None
 
     async def update_review_image_url(self, char_name: str, image_url: str):
         """更新审核记录的图片 URL"""
-        async with self._pool.acquire() as conn:
-            async with conn.cursor() as cur:
-                await cur.execute(
-                    "UPDATE character_reviews SET image_url = %s WHERE char_name = %s",
-                    (image_url, char_name),
-                )
+        await self.reviews.update_image_url(char_name, image_url)
 
     async def set_review_approved(self, char_name: str, approved: bool):
         """设置审核状态"""
-        async with self._pool.acquire() as conn:
-            async with conn.cursor() as cur:
-                await cur.execute(
-                    "UPDATE character_reviews SET approved = %s WHERE char_name = %s",
-                    (approved, char_name),
-                )
+        await self.reviews.set_approved(char_name, approved)
 
     async def delete_character_review(self, char_name: str) -> bool:
         """删除角色卡审核记录"""
-        async with self._pool.acquire() as conn:
-            async with conn.cursor() as cur:
-                await cur.execute(
-                    "DELETE FROM character_reviews WHERE char_name = %s",
-                    (char_name,),
-                )
-                return cur.rowcount > 0
+        return await self.reviews.delete_by_char_name(char_name)
 
     async def cleanup_expired_reviews(self, expire_hours: int = 24) -> int:
         """清理过期的审核记录"""
-        async with self._pool.acquire() as conn:
-            async with conn.cursor() as cur:
-                await cur.execute(
-                    """DELETE FROM character_reviews 
-                       WHERE created_at < DATE_SUB(NOW(), INTERVAL %s HOUR)""",
-                    (expire_hours,),
-                )
-                return cur.rowcount
+        return await self.reviews.cleanup_expired(expire_hours)

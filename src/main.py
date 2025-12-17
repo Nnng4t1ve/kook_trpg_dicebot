@@ -2,44 +2,36 @@
 import asyncio
 import sys
 from pathlib import Path
-from loguru import logger
+
 import uvicorn
+from loguru import logger
 
 # 添加项目根目录到路径
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from src.config import settings
 from src.bot import KookClient, MessageHandler
 from src.character import CharacterManager
+from src.config import settings
+from src.logging import setup_logging as configure_logging
+from src.services import TokenService
 from src.storage import Database
 from src.web import create_app
-
-
-def setup_logging():
-    """配置日志"""
-    logger.remove()
-    logger.add(
-        sys.stderr,
-        level=settings.log_level,
-        format="<green>{time:YYYY-MM-DD HH:mm:ss}</green> | "
-               "<level>{level: <8}</level> | "
-               "<cyan>{name}</cyan>:<cyan>{function}</cyan> - "
-               "<level>{message}</level>"
-    )
-    
-    settings.log_path.mkdir(parents=True, exist_ok=True)
-    logger.add(
-        settings.log_path / "bot_{time:YYYY-MM-DD}.log",
-        rotation="00:00",
-        retention="7 days",
-        level="DEBUG"
-    )
+from src.web.routers.health import set_start_time
 
 
 async def main():
     """主函数"""
-    setup_logging()
+    # 使用新的日志配置模块
+    configure_logging(
+        level=settings.log_level,
+        log_path=settings.log_path,
+        rotation="10 MB",
+        retention="7 days",
+    )
     logger.info("COC Dice Bot 启动中...")
+    
+    # 记录启动时间
+    set_start_time()
     
     # 初始化 MySQL 数据库
     db = Database(
@@ -55,11 +47,18 @@ async def main():
     # 初始化角色管理器 (LRU 缓存，最多 500 个角色卡)
     char_manager = CharacterManager(db, cache_size=500)
     
+    # 初始化 Token 服务
+    token_service = TokenService()
+    
     # 初始化客户端
     client = KookClient(settings.kook_token, settings.kook_api_base)
     
     # 创建 Web 应用
-    web_app = create_app(db, char_manager)
+    web_app = create_app(db, char_manager, token_service)
+    
+    # 设置 bot 连接状态（供健康检查使用）
+    web_app.state.bot_connected = False
+    web_app.state.recent_errors = 0
     
     # 初始化消息处理器，传入 web_app 以生成创建链接
     handler = MessageHandler(client, char_manager, db, web_app)
@@ -73,26 +72,38 @@ async def main():
     )
     web_server = uvicorn.Server(web_config)
     
+    async def run_bot():
+        """运行 Bot 并更新连接状态"""
+        try:
+            web_app.state.bot_connected = True
+            await client.start(handler.handle)
+        except Exception as e:
+            logger.error(f"Bot 运行错误: {e}")
+            web_app.state.recent_errors += 1
+        finally:
+            web_app.state.bot_connected = False
+    
     try:
         logger.info(f"Web 服务启动: {settings.web_base_url}")
+        logger.info(f"API 文档: {settings.web_base_url}/docs")
         logger.info("正在连接 KOOK...")
         
         # 启动定时清理任务
         handler.check_manager.start_cleanup_task()
-        web_app.start_cleanup_task()
+        token_service.start_cleanup_task()
         logger.info("定时清理任务已启动")
         
         # 同时运行 Web 服务和 Bot
         await asyncio.gather(
             web_server.serve(),
-            client.start(handler.handle)
+            run_bot()
         )
     except KeyboardInterrupt:
         logger.info("收到退出信号")
     finally:
         # 停止清理任务
         handler.check_manager.stop_cleanup_task()
-        web_app.stop_cleanup_task()
+        token_service.stop_cleanup_task()
         await client.stop()
         await db.close()
         logger.info("Bot 已停止")

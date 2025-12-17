@@ -913,8 +913,10 @@ class CardBuilder:
         image_url: str,
         initiator_id: str,
         initiator_name: str,
+        kp_id: str = None,
     ) -> str:
         """构建角色卡审核卡片"""
+        kp_hint = f"只有 (met){kp_id}(met) 可以审核" if kp_id else "只有 KP 可以审核"
         card = {
             "type": "card",
             "theme": "info",
@@ -935,7 +937,7 @@ class CardBuilder:
                     "elements": [
                         {
                             "type": "kmarkdown",
-                            "content": f"提交者: **{initiator_name}** (met){initiator_id}(met)\n只有 KP 可以审核，审核通过后玩家才能创建角色卡",
+                            "content": f"提交者: **{initiator_name}** (met){initiator_id}(met)\n{kp_hint}，审核通过后玩家才能创建角色卡",
                         }
                     ],
                 },
@@ -950,6 +952,7 @@ class CardBuilder:
                                     "action": "approve_character",
                                     "char_name": char_name,
                                     "initiator_id": initiator_id,
+                                    "kp_id": kp_id,
                                 }
                             ),
                             "click": "return-val",
@@ -963,6 +966,7 @@ class CardBuilder:
                                     "action": "reject_character",
                                     "char_name": char_name,
                                     "initiator_id": initiator_id,
+                                    "kp_id": kp_id,
                                 }
                             ),
                             "click": "return-val",

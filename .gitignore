@@ -19,6 +19,13 @@ ENV/
 data/*.db
 logs/*.log
 
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+*.cover
+.hypothesis/
+
 # OS
 .DS_Store
 Thumbs.db

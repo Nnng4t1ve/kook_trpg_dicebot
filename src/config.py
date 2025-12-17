@@ -1,7 +1,11 @@
 """配置管理模块"""
 from pydantic_settings import BaseSettings
-from pydantic import Field
+from pydantic import Field, SecretStr
 from pathlib import Path
+
+
+# 敏感字段名列表，这些字段在日志中会被掩码
+SENSITIVE_FIELDS = {"kook_token", "db_password"}
 
 
 class Settings(BaseSettings):
@@ -38,6 +42,31 @@ class Settings(BaseSettings):
     class Config:
         env_file = ".env"
         env_file_encoding = "utf-8"
+    
+    def safe_dict(self) -> dict:
+        """返回安全的配置字典，敏感字段会被掩码"""
+        data = {}
+        for key, value in self.model_dump().items():
+            if key in SENSITIVE_FIELDS:
+                if value:
+                    # 只显示前4个字符，其余用 * 掩码
+                    masked = value[:4] + "*" * (len(value) - 4) if len(value) > 4 else "****"
+                    data[key] = masked
+                else:
+                    data[key] = "(empty)"
+            else:
+                data[key] = value
+        return data
+    
+    def __repr__(self) -> str:
+        """安全的字符串表示，不暴露敏感信息"""
+        safe = self.safe_dict()
+        items = ", ".join(f"{k}={v!r}" for k, v in safe.items())
+        return f"Settings({items})"
+    
+    def __str__(self) -> str:
+        """安全的字符串表示"""
+        return self.__repr__()
 
 
 settings = Settings()
