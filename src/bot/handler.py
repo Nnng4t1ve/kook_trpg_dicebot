@@ -205,6 +205,8 @@ class MessageHandler:
             await self._handle_approve_character_button(value, user_id, target_id, user_name)
         elif action == "reject_character":
             await self._handle_reject_character_button(value, user_id, target_id, user_name)
+        elif action == "confirm_create_character":
+            await self._handle_confirm_create_character_button(value, user_id, target_id, user_name)
         elif action == "notebook_page":
             await self._handle_notebook_page_button(value, user_id, target_id)
 
@@ -635,16 +637,20 @@ class MessageHandler:
             await self.client.send_message(channel_id, f"(met){user_id}(met) 该角色卡审核已处理或不存在", msg_type=9)
             return
 
-        if review.get("approved") is not None:
+        # approved 默认是 False，只有 True 才表示已审核通过
+        if review.get("approved") is True:
             await self.client.send_message(channel_id, f"(met){user_id}(met) 该角色卡已经审核过了", msg_type=9)
             return
 
+        # 标记审核通过
         await self.db.set_review_approved(char_name, True)
 
+        # 发送审核结果到频道（@提交者）
         card = CardBuilder.build_review_result_card(
             char_name=char_name, approved=True, reviewer_name=user_name, initiator_id=initiator_id,
         )
         await self.client.send_message(channel_id, card, msg_type=10)
+        
         logger.info(f"角色卡审核通过: {char_name} by {user_name}")
 
     async def _handle_reject_character_button(
@@ -668,10 +674,7 @@ class MessageHandler:
             await self.client.send_message(channel_id, f"(met){user_id}(met) 该角色卡审核已处理或不存在", msg_type=9)
             return
 
-        if review.get("approved") is not None:
-            await self.client.send_message(channel_id, f"(met){user_id}(met) 该角色卡已经审核过了", msg_type=9)
-            return
-
+        # 删除审核记录（拒绝时直接删除）
         await self.db.delete_character_review(char_name)
 
         card = CardBuilder.build_review_result_card(

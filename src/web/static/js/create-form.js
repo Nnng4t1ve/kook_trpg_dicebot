@@ -39,15 +39,14 @@ const FormManager = {
         });
     },
 
-    // 获取物品栏数据
+    // 获取物品栏数据（只返回物品名称和背包格）
     getInventoryData() {
         const inventory = [];
         for (let i = 0; i < INVENTORY_ROWS; i++) {
-            const slot = document.querySelector(`input[name="inv_slot_${i}"]`)?.value || '';
             const item = document.querySelector(`input[name="inv_item_${i}"]`)?.value || '';
             const backpack = document.querySelector(`input[name="inv_backpack_${i}"]`)?.value || '';
-            if (slot || item || backpack) {
-                inventory.push({ slot, item, backpack });
+            if (item || backpack) {
+                inventory.push({ item, backpack });
             }
         }
         return inventory;

@@ -97,12 +97,12 @@ class ReviewRepository(BaseRepository[CharacterReview]):
         sql = """
             INSERT INTO character_reviews 
             (char_name, user_id, image_data, image_url, char_data, approved) 
-            VALUES (%s, %s, %s, %s, %s, %s)
+            VALUES (%s, %s, %s, %s, %s, %s) AS new_values
             ON DUPLICATE KEY UPDATE 
-            image_data = VALUES(image_data),
-            image_url = VALUES(image_url),
-            char_data = VALUES(char_data),
-            approved = VALUES(approved),
+            image_data = new_values.image_data,
+            image_url = new_values.image_url,
+            char_data = new_values.char_data,
+            approved = new_values.approved,
             created_at = CURRENT_TIMESTAMP
         """
         return await self.execute(

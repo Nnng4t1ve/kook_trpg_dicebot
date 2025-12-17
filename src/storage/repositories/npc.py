@@ -79,10 +79,10 @@ class NPCRepository(BaseRepository[Character]):
         """
         sql = """
             INSERT INTO npcs (channel_id, name, template_id, data) 
-            VALUES (%s, %s, %s, %s)
+            VALUES (%s, %s, %s, %s) AS new_values
             ON DUPLICATE KEY UPDATE 
-            template_id = VALUES(template_id),
-            data = VALUES(data)
+            template_id = new_values.template_id,
+            data = new_values.data
         """
         return await self.execute(
             sql, (channel_id, npc.name, template_id, npc.to_json())

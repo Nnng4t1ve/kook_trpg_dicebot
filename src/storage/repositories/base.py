@@ -166,13 +166,13 @@ class BaseRepository(ABC, Generic[T]):
         columns = ", ".join(data.keys())
         placeholders = ", ".join(["%s"] * len(data))
         
-        # 构建更新部分，排除唯一键
+        # 构建更新部分，排除唯一键，使用别名语法替代 VALUES()
         update_fields = [k for k in data.keys() if k not in unique_keys]
-        update_clause = ", ".join([f"{k} = VALUES({k})" for k in update_fields])
+        update_clause = ", ".join([f"{k} = new_values.{k}" for k in update_fields])
         
         sql = f"""
             INSERT INTO {self.table_name} ({columns}) 
-            VALUES ({placeholders})
+            VALUES ({placeholders}) AS new_values
             ON DUPLICATE KEY UPDATE {update_clause}
         """
         

@@ -24,8 +24,8 @@ class TokenService:
     负责 token 的生成、验证、清理和统计
     """
     
-    TOKEN_EXPIRE_SECONDS = 600  # 10 分钟过期
-    CLEANUP_INTERVAL = 300  # 清理间隔 5 分钟
+    TOKEN_EXPIRE_SECONDS = 7200  # 2 小时过期（创建人物卡需要较长时间）
+    CLEANUP_INTERVAL = 600  # 清理间隔 10 分钟
     
     def __init__(self, expire_seconds: int = None, cleanup_interval: int = None):
         self._tokens: dict[str, TokenData] = {}
