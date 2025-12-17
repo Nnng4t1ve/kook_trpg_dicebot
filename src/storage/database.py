@@ -8,6 +8,8 @@ from ..character.models import Character
 from .repositories import (
     CharacterRepository,
     NPCRepository,
+    NotebookEntryRepository,
+    NotebookRepository,
     ReviewRepository,
     UserSettingsRepository,
 )
@@ -45,6 +47,8 @@ class Database:
         self._npc_repo: Optional[NPCRepository] = None
         self._user_settings_repo: Optional[UserSettingsRepository] = None
         self._review_repo: Optional[ReviewRepository] = None
+        self._notebook_repo: Optional[NotebookRepository] = None
+        self._notebook_entry_repo: Optional[NotebookEntryRepository] = None
     
     @property
     def password(self) -> str:
@@ -107,6 +111,8 @@ class Database:
             self._npc_repo = None
             self._user_settings_repo = None
             self._review_repo = None
+            self._notebook_repo = None
+            self._notebook_entry_repo = None
 
     @property
     def pool(self) -> aiomysql.Pool:
@@ -144,6 +150,20 @@ class Database:
         if not self._review_repo:
             self._review_repo = ReviewRepository(self.pool)
         return self._review_repo
+    
+    @property
+    def notebooks(self) -> NotebookRepository:
+        """获取记事本仓库"""
+        if not self._notebook_repo:
+            self._notebook_repo = NotebookRepository(self.pool)
+        return self._notebook_repo
+    
+    @property
+    def notebook_entries(self) -> NotebookEntryRepository:
+        """获取记事本条目仓库"""
+        if not self._notebook_entry_repo:
+            self._notebook_entry_repo = NotebookEntryRepository(self.pool)
+        return self._notebook_entry_repo
 
     async def _init_tables(self):
         """初始化表结构"""
@@ -195,6 +215,27 @@ class Database:
                         approved BOOLEAN DEFAULT FALSE,
                         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                         INDEX idx_user (user_id)
+                    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+                """)
+
+                await cur.execute("""
+                    CREATE TABLE IF NOT EXISTS notebooks (
+                        id INT AUTO_INCREMENT PRIMARY KEY,
+                        name VARCHAR(128) NOT NULL UNIQUE,
+                        created_by VARCHAR(64) NOT NULL,
+                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+                """)
+
+                await cur.execute("""
+                    CREATE TABLE IF NOT EXISTS notebook_entries (
+                        id INT AUTO_INCREMENT PRIMARY KEY,
+                        notebook_id INT NOT NULL,
+                        content TEXT NOT NULL,
+                        created_by VARCHAR(64) NOT NULL,
+                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                        INDEX idx_notebook (notebook_id),
+                        FOREIGN KEY (notebook_id) REFERENCES notebooks(id) ON DELETE CASCADE
                     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
                 """)
 

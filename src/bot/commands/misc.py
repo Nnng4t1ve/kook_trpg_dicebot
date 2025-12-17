@@ -70,7 +70,16 @@ class HelpCommand(BaseCommand):
 `.set 3` - COC6标准规则
 `.rule show` - 显示当前规则
 `.rule crit <值>` - 设置大成功阈值
-`.rule fumble <值>` - 设置大失败阈值""")
+`.rule fumble <值>` - 设置大失败阈值
+
+**记事本命令**
+`.note` - 查看当前记事本
+`.note all` - 查看所有记事本
+`.note c <名称>` - 创建新记事本
+`.note s <名称>` - 切换记事本
+`.note i <内容>` - 记录内容
+`.note list` - 查看记录列表
+`.note w <序号>` - 查看具体内容""")
 
 
 @command("ri")

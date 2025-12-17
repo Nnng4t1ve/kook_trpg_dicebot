@@ -131,16 +131,69 @@ class CharacterCommand(BaseCommand):
         lines.append(
             f"HP: {char.hp}/{char.max_hp} | MP: {char.mp}/{char.max_mp} | SAN: {char.san}/{max_san}"
         )
+        lines.append(f"体格: {char.build} | DB: {char.db} | MOV: {char.mov}")
         
         if char.attributes:
             attrs = " | ".join(f"{k}:{v}" for k, v in char.attributes.items())
             lines.append(f"属性: {attrs}")
         
+        # 技能：按成功率从高到低排序，只显示非初始值的技能
         if char.skills:
-            skills = " | ".join(f"{k}:{v}" for k, v in list(char.skills.items())[:10])
-            lines.append(f"技能: {skills}")
+            from ...data.skills import COC7_SKILLS
+            # 构建初始值映射
+            initial_values = {}
+            for name, initial, *_ in COC7_SKILLS:
+                # 处理可自定义名称的技能（如 "格斗:"）
+                if name.endswith(":"):
+                    initial_values[name.rstrip(":")] = initial
+                else:
+                    initial_values[name] = initial
+            
+            # 过滤非初始值的技能并排序
+            non_default_skills = []
+            for skill_name, value in char.skills.items():
+                # 获取初始值
+                initial = self._get_skill_initial(skill_name, initial_values)
+                if value != initial:
+                    non_default_skills.append((skill_name, value))
+            
+            # 按成功率从高到低排序
+            non_default_skills.sort(key=lambda x: x[1], reverse=True)
+            
+            if non_default_skills:
+                skills_text = " | ".join(f"{k}:{v}" for k, v in non_default_skills)
+                lines.append(f"技能: {skills_text}")
+        
+        # 随身物品
+        if char.items:
+            items_text = "、".join(char.items)
+            lines.append(f"物品: {items_text}")
         
         return CommandResult.text("\n".join(lines))
+    
+    def _get_skill_initial(self, skill_name: str, initial_values: dict) -> int:
+        """获取技能的初始值"""
+        # 直接匹配
+        if skill_name in initial_values:
+            return initial_values[skill_name]
+        
+        # 处理带冒号的技能（如 "格斗:剑" -> 查找 "格斗"）
+        normalized = skill_name.replace("：", ":")
+        if ":" in normalized:
+            base_name = normalized.split(":")[0]
+            if base_name in initial_values:
+                return initial_values[base_name]
+        
+        # 特殊处理一些别名
+        alias_map = {
+            "斗殴": 25, "斧": 15, "剑": 20,
+            "手枪": 20, "步枪/霰弹枪": 25, "冲锋枪": 15,
+        }
+        if skill_name in alias_map:
+            return alias_map[skill_name]
+        
+        # 默认返回 1（大多数冷门技能的初始值）
+        return 1
     
     async def _pc_delete(self, name: str) -> CommandResult:
         """删除角色卡"""

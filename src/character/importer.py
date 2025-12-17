@@ -33,6 +33,16 @@ class CharacterImporter:
         san = data.get("san", attributes.get("POW", 0))
         luck = attributes.get("LUK", data.get("luck", 0))
         
+        # 提取物品（只保留名称，不保留部位信息）
+        items = []
+        raw_items = data.get("items", [])
+        for item in raw_items:
+            if isinstance(item, str):
+                items.append(item)
+            elif isinstance(item, dict):
+                # 如果是 {"name": "xxx", "slot": "xxx"} 格式，只取名称
+                items.append(item.get("name", str(item)))
+        
         char = Character(
             name=data["name"],
             user_id=user_id,
@@ -41,7 +51,8 @@ class CharacterImporter:
             hp=hp, max_hp=hp,
             mp=mp, max_mp=mp,
             san=san, max_san=99,
-            luck=luck
+            luck=luck,
+            items=items,
         )
         
         return char, None

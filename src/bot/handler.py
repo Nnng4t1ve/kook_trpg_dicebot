@@ -128,6 +128,8 @@ class MessageHandler:
             await self._handle_approve_character_button(value, user_id, target_id, user_name)
         elif action == "reject_character":
             await self._handle_reject_character_button(value, user_id, target_id, user_name)
+        elif action == "notebook_page":
+            await self._handle_notebook_page_button(value, user_id, target_id)
 
     async def _handle_san_check_button(
         self, value: dict, user_id: str, target_id: str, user_name: str
@@ -640,3 +642,72 @@ class MessageHandler:
             if match:
                 expr = f"d{expr}"
         return expr
+
+    async def _handle_notebook_page_button(
+        self, value: dict, user_id: str, channel_id: str
+    ):
+        """处理记事本分页按钮点击"""
+        from .commands.notebook import _user_active_notebook
+        from ..cards.builder import CardBuilder as CB
+        from ..cards.components import CardComponents
+        
+        notebook_name = value.get("notebook")
+        page = value.get("page", 1)
+        
+        if not notebook_name:
+            await self.client.send_message(channel_id, f"(met){user_id}(met) 参数错误", msg_type=9)
+            return
+        
+        # 更新用户当前记事本
+        _user_active_notebook[user_id] = notebook_name
+        
+        notebook = await self.db.notebooks.find_by_name(notebook_name)
+        if not notebook:
+            await self.client.send_message(channel_id, f"(met){user_id}(met) 记事本不存在", msg_type=9)
+            return
+        
+        entries, total = await self.db.notebook_entries.get_entries_page(
+            notebook.id, page=page, page_size=10
+        )
+        
+        if total == 0:
+            await self.client.send_message(channel_id, f"📒 **{notebook_name}** 暂无记录", msg_type=9)
+            return
+        
+        total_pages = (total + 9) // 10
+        
+        # 构建卡片
+        builder = CB(theme="info")
+        builder.header(f"📒 {notebook_name}")
+        builder.divider()
+        
+        start_idx = (page - 1) * 10 + 1
+        lines = []
+        for i, entry in enumerate(entries):
+            idx = start_idx + i
+            content_preview = entry.content[:30] + "..." if len(entry.content) > 30 else entry.content
+            lines.append(f"**{idx}.** {content_preview}")
+        
+        builder.section("\n".join(lines))
+        builder.context(f"第 {page}/{total_pages} 页 · 共 {total} 条记录")
+        
+        if total_pages > 1:
+            prev_page = total_pages if page == 1 else page - 1
+            next_page = 1 if page == total_pages else page + 1
+            
+            buttons = [
+                CardComponents.button(
+                    "⬅️ 上一页",
+                    {"action": "notebook_page", "notebook": notebook_name, "page": prev_page},
+                    theme="secondary"
+                ),
+                CardComponents.button(
+                    "下一页 ➡️",
+                    {"action": "notebook_page", "notebook": notebook_name, "page": next_page},
+                    theme="secondary"
+                ),
+            ]
+            builder.buttons(*buttons)
+        
+        card = builder.build()
+        await self.client.send_message(channel_id, card, msg_type=10)
