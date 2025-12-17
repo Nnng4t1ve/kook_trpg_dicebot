@@ -109,6 +109,10 @@ class MessageHandler:
             await self._handle_damage_button(value, user_id, target_id, user_name)
         elif action == "con_check":
             await self._handle_con_check_button(value, user_id, target_id, user_name)
+        elif action == "approve_character":
+            await self._handle_approve_character_button(value, user_id, target_id, user_name)
+        elif action == "reject_character":
+            await self._handle_reject_character_button(value, user_id, target_id, user_name)
 
     async def _handle_san_check_button(
         self, value: dict, user_id: str, target_id: str, user_name: str
@@ -291,7 +295,7 @@ class MessageHandler:
         args = parts[1] if len(parts) > 1 else ""
         
         # 如果命令不在已知列表中，尝试紧凑格式解析
-        all_commands = ["r", "rd", "ra", "rc", "rule", "help", "check", "pc", "npc", "ad", "ri", "dmg", "hp", "mp", "san"]
+        all_commands = ["r", "rd", "ra", "rc", "rule", "help", "check", "pc", "npc", "ad", "ri", "dmg", "hp", "mp", "san", "cc"]
         if command not in all_commands:
             # 尝试匹配紧凑格式命令前缀
             cmd_lower = cmd.lower()
@@ -322,6 +326,10 @@ class MessageHandler:
         # pc create 需要返回卡片
         if command == "pc":
             return await self._cmd_character(args, user_id)
+
+        # 角色卡审核命令
+        if command == "cc":
+            return await self._cmd_character_review(args, user_id, channel_id, user_name)
         
         # 需要 channel_id 的命令
         if command == "ri":
@@ -2182,3 +2190,126 @@ class MessageHandler:
 `.rule show` - 显示当前规则
 `.rule crit <值>` - 设置大成功阈值
 `.rule fumble <值>` - 设置大失败阈值"""
+
+    async def _cmd_character_review(
+        self, args: str, user_id: str, channel_id: str, user_name: str
+    ) -> Tuple[str, bool]:
+        """角色卡审核命令: .cc <角色名>"""
+        import base64
+
+        char_name = args.strip()
+        if not char_name:
+            return (
+                "**角色卡审核命令**\n"
+                "`.cc <角色名>` - 发起角色卡审核\n"
+                "示例: `.cc 张三`\n\n"
+                "请先在网页上创建角色卡并提交审核，然后使用此命令发起审核",
+                False,
+            )
+
+        # 从数据库获取待审核数据
+        review = await self.db.get_character_review(char_name)
+        if not review:
+            return (f"未找到待审核角色卡: {char_name}\n请先在网页上提交审核", False)
+
+        # 验证是否是提交者
+        if review["user_id"] != user_id:
+            return ("只有提交者可以发起审核", False)
+
+        # 检查是否已有图片 URL（避免重复上传）
+        image_url = review.get("image_url")
+        if not image_url:
+            # 解码图片数据
+            image_data = review["image_data"]
+            if image_data and image_data.startswith("data:image/png;base64,"):
+                image_data = image_data.split(",", 1)[1]
+
+            if not image_data:
+                return ("图片数据不存在", False)
+
+            try:
+                image_bytes = base64.b64decode(image_data)
+            except Exception as e:
+                logger.error(f"解码图片失败: {e}")
+                return ("图片数据解析失败", False)
+
+            # 上传图片到 KOOK
+            image_url = await self.client.upload_asset(image_bytes, f"{char_name}.png")
+            if not image_url:
+                return ("图片上传失败", False)
+
+            # 更新数据库中的图片 URL
+            await self.db.update_review_image_url(char_name, image_url)
+            logger.info(f"角色卡图片上传成功: {char_name} -> {image_url}")
+
+        # 构建审核卡片
+        card = CardBuilder.build_character_review_card(
+            char_name=char_name,
+            image_url=image_url,
+            initiator_id=user_id,
+            initiator_name=user_name,
+        )
+
+        return (card, True)
+
+    async def _handle_approve_character_button(
+        self, value: dict, user_id: str, channel_id: str, user_name: str
+    ):
+        """处理审核通过按钮点击"""
+        char_name = value.get("char_name")
+        initiator_id = value.get("initiator_id")
+
+        if not char_name:
+            await self.client.send_message(
+                channel_id, f"(met){user_id}(met) 参数错误", msg_type=9
+            )
+            return
+
+        # 从数据库获取待审核数据
+        review = await self.db.get_character_review(char_name)
+        if not review:
+            await self.client.send_message(
+                channel_id, f"(met){user_id}(met) 未找到待审核角色卡: {char_name}", msg_type=9
+            )
+            return
+
+        # 设置为已审核通过
+        await self.db.set_review_approved(char_name, True)
+
+        # 发送审核结果卡片
+        card = CardBuilder.build_review_result_card(
+            char_name=char_name,
+            approved=True,
+            reviewer_name=user_name,
+            initiator_id=initiator_id,
+        )
+        await self.client.send_message(channel_id, card, msg_type=10)
+
+        logger.info(f"角色卡审核通过: {char_name} by {user_name}")
+
+    async def _handle_reject_character_button(
+        self, value: dict, user_id: str, channel_id: str, user_name: str
+    ):
+        """处理审核拒绝按钮点击"""
+        char_name = value.get("char_name")
+        initiator_id = value.get("initiator_id")
+
+        if not char_name:
+            await self.client.send_message(
+                channel_id, f"(met){user_id}(met) 参数错误", msg_type=9
+            )
+            return
+
+        # 从数据库删除待审核数据
+        await self.db.delete_character_review(char_name)
+
+        # 发送审核结果卡片
+        card = CardBuilder.build_review_result_card(
+            char_name=char_name,
+            approved=False,
+            reviewer_name=user_name,
+            initiator_id=initiator_id,
+        )
+        await self.client.send_message(channel_id, card, msg_type=10)
+
+        logger.info(f"角色卡审核拒绝: {char_name} by {user_name}")

@@ -99,6 +99,20 @@ class Database:
                     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
                 """)
 
+                await cur.execute("""
+                    CREATE TABLE IF NOT EXISTS character_reviews (
+                        id INT AUTO_INCREMENT PRIMARY KEY,
+                        char_name VARCHAR(128) NOT NULL UNIQUE,
+                        user_id VARCHAR(64) NOT NULL,
+                        image_data LONGTEXT,
+                        image_url VARCHAR(512),
+                        char_data JSON NOT NULL,
+                        approved BOOLEAN DEFAULT FALSE,
+                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                        INDEX idx_user (user_id)
+                    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+                """)
+
     async def save_character(self, char: Character):
         """保存角色卡"""
         async with self._pool.acquire() as conn:
@@ -270,5 +284,92 @@ class Database:
             async with conn.cursor() as cur:
                 await cur.execute(
                     "DELETE FROM npcs WHERE channel_id = %s", (channel_id,)
+                )
+                return cur.rowcount
+
+    # ===== 角色卡审核 =====
+
+    async def save_character_review(
+        self,
+        char_name: str,
+        user_id: str,
+        image_data: str,
+        char_data: dict,
+        image_url: str = None,
+    ):
+        """保存角色卡审核记录"""
+        async with self._pool.acquire() as conn:
+            async with conn.cursor() as cur:
+                await cur.execute(
+                    """INSERT INTO character_reviews 
+                       (char_name, user_id, image_data, image_url, char_data, approved) 
+                       VALUES (%s, %s, %s, %s, %s, FALSE) AS new_data
+                       ON DUPLICATE KEY UPDATE 
+                       image_data = new_data.image_data,
+                       image_url = new_data.image_url,
+                       char_data = new_data.char_data,
+                       approved = FALSE,
+                       created_at = CURRENT_TIMESTAMP""",
+                    (char_name, user_id, image_data, image_url, json.dumps(char_data)),
+                )
+
+    async def get_character_review(self, char_name: str) -> Optional[dict]:
+        """获取角色卡审核记录"""
+        async with self._pool.acquire() as conn:
+            async with conn.cursor() as cur:
+                await cur.execute(
+                    """SELECT char_name, user_id, image_data, image_url, char_data, approved, created_at
+                       FROM character_reviews WHERE char_name = %s""",
+                    (char_name,),
+                )
+                row = await cur.fetchone()
+                if row:
+                    return {
+                        "char_name": row[0],
+                        "user_id": row[1],
+                        "image_data": row[2],
+                        "image_url": row[3],
+                        "char_data": json.loads(row[4]) if isinstance(row[4], str) else row[4],
+                        "approved": bool(row[5]),
+                        "created_at": row[6],
+                    }
+        return None
+
+    async def update_review_image_url(self, char_name: str, image_url: str):
+        """更新审核记录的图片 URL"""
+        async with self._pool.acquire() as conn:
+            async with conn.cursor() as cur:
+                await cur.execute(
+                    "UPDATE character_reviews SET image_url = %s WHERE char_name = %s",
+                    (image_url, char_name),
+                )
+
+    async def set_review_approved(self, char_name: str, approved: bool):
+        """设置审核状态"""
+        async with self._pool.acquire() as conn:
+            async with conn.cursor() as cur:
+                await cur.execute(
+                    "UPDATE character_reviews SET approved = %s WHERE char_name = %s",
+                    (approved, char_name),
+                )
+
+    async def delete_character_review(self, char_name: str) -> bool:
+        """删除角色卡审核记录"""
+        async with self._pool.acquire() as conn:
+            async with conn.cursor() as cur:
+                await cur.execute(
+                    "DELETE FROM character_reviews WHERE char_name = %s",
+                    (char_name,),
+                )
+                return cur.rowcount > 0
+
+    async def cleanup_expired_reviews(self, expire_hours: int = 24) -> int:
+        """清理过期的审核记录"""
+        async with self._pool.acquire() as conn:
+            async with conn.cursor() as cur:
+                await cur.execute(
+                    """DELETE FROM character_reviews 
+                       WHERE created_at < DATE_SUB(NOW(), INTERVAL %s HOUR)""",
+                    (expire_hours,),
                 )
                 return cur.rowcount

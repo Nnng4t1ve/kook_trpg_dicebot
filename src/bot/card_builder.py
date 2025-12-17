@@ -906,3 +906,104 @@ class CardBuilder:
             ],
         }
         return json.dumps([card])
+
+    @staticmethod
+    def build_character_review_card(
+        char_name: str,
+        image_url: str,
+        initiator_id: str,
+        initiator_name: str,
+    ) -> str:
+        """构建角色卡审核卡片"""
+        card = {
+            "type": "card",
+            "theme": "info",
+            "size": "lg",
+            "modules": [
+                {
+                    "type": "header",
+                    "text": {"type": "plain-text", "content": f"📋 角色卡审核: {char_name}"},
+                },
+                {"type": "divider"},
+                {
+                    "type": "container",
+                    "elements": [{"type": "image", "src": image_url}],
+                },
+                {"type": "divider"},
+                {
+                    "type": "context",
+                    "elements": [
+                        {
+                            "type": "kmarkdown",
+                            "content": f"提交者: **{initiator_name}** (met){initiator_id}(met)\n只有 KP 可以审核，审核通过后玩家才能创建角色卡",
+                        }
+                    ],
+                },
+                {
+                    "type": "action-group",
+                    "elements": [
+                        {
+                            "type": "button",
+                            "theme": "success",
+                            "value": json.dumps(
+                                {
+                                    "action": "approve_character",
+                                    "char_name": char_name,
+                                    "initiator_id": initiator_id,
+                                }
+                            ),
+                            "click": "return-val",
+                            "text": {"type": "plain-text", "content": "✅ 审核通过"},
+                        },
+                        {
+                            "type": "button",
+                            "theme": "danger",
+                            "value": json.dumps(
+                                {
+                                    "action": "reject_character",
+                                    "char_name": char_name,
+                                    "initiator_id": initiator_id,
+                                }
+                            ),
+                            "click": "return-val",
+                            "text": {"type": "plain-text", "content": "❌ 审核拒绝"},
+                        },
+                    ],
+                },
+            ],
+        }
+        return json.dumps([card])
+
+    @staticmethod
+    def build_review_result_card(
+        char_name: str,
+        approved: bool,
+        reviewer_name: str,
+        initiator_id: str,
+    ) -> str:
+        """构建审核结果卡片"""
+        if approved:
+            theme = "success"
+            title = f"✅ 角色卡 {char_name} 审核通过"
+            content = f"**{reviewer_name}** 已通过审核\n(met){initiator_id}(met) 现在可以在网页上点击「创建角色卡」按钮完成创建"
+        else:
+            theme = "danger"
+            title = f"❌ 角色卡 {char_name} 审核未通过"
+            content = f"**{reviewer_name}** 拒绝了审核\n(met){initiator_id}(met) 请修改后重新提交"
+
+        card = {
+            "type": "card",
+            "theme": theme,
+            "size": "lg",
+            "modules": [
+                {
+                    "type": "header",
+                    "text": {"type": "plain-text", "content": title},
+                },
+                {
+                    "type": "section",
+                    "text": {"type": "kmarkdown", "content": content},
+                },
+            ],
+        }
+        return json.dumps([card])

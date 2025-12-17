@@ -5,6 +5,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>创建 COC7 角色卡</title>
+    <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
     <style>
         * {
             box-sizing: border-box;
@@ -241,6 +242,17 @@
 
         .btn:disabled {
             opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .btn.approved {
+            background: linear-gradient(135deg, #4caf50, #8bc34a);
+            animation: glow 1.5s ease-in-out infinite alternate;
+        }
+
+        @keyframes glow {
+            from { box-shadow: 0 0 5px #4caf50; }
+            to { box-shadow: 0 0 20px #4caf50; }
         }
 
         .btn-secondary {
@@ -347,12 +359,13 @@
                     <p class="hint">加载中...</p>
                 </div>
             </div>
-            <button type="submit" class="btn" id="submitBtn">✨ 创建角色卡</button>
-            <button type="button" class="btn btn-secondary" id="exportBtn">📋 生成导入指令</button>
+            <button type="submit" class="btn" id="submitBtn" disabled>✨ 创建角色卡 (需先审核通过)</button>
+            <button type="button" class="btn btn-secondary" id="exportBtn">📋 角色卡审核</button>
         </form>
         <div id="result" style="display:none;"></div>
         <div id="exportResult" style="display:none;" class="card">
-            <h2>📋 导入指令</h2>
+            <h2>📋 审核指令</h2>
+            <p class="hint" style="margin-bottom:8px;">在 KOOK 中发送以下指令发起审核，KP 审核通过后即可创建角色卡</p>
             <textarea id="exportText" readonly
                 style="width:100%;min-height:60px;margin-top:8px;background:rgba(0,0,0,0.3);color:#fff;border:none;border-radius:6px;padding:8px;"></textarea>
             <button type="button" class="btn btn-secondary" id="copyBtn" style="margin-top:8px;">复制</button>
@@ -540,16 +553,21 @@
                 lastHobbyRemain = hobbyRemain;
             }
             
-            // 检查是否可以创建
+            // 检查是否可以审核（点数不能超支）
             const jobOverspent = totalJobPoints !== null && (totalJobPoints - usedJobPoints) < 0;
             const hobbyOverspent = totalHobbyPoints !== null && (totalHobbyPoints - usedHobbyPoints) < 0;
+            const reviewBtn = document.getElementById('exportBtn');
             
             if (jobOverspent || hobbyOverspent) {
                 submitBtn.disabled = true;
                 submitBtn.textContent = '⚠️ 点数超支，无法创建';
+                reviewBtn.disabled = true;
+                reviewBtn.textContent = '⚠️ 点数超支，无法审核';
             } else {
-                submitBtn.disabled = false;
-                submitBtn.textContent = '✨ 创建角色卡';
+                submitBtn.disabled = true;
+                submitBtn.textContent = '✨ 创建角色卡 (需先审核通过)';
+                reviewBtn.disabled = false;
+                reviewBtn.textContent = '📋 角色卡审核';
             }
         }
 
@@ -884,11 +902,126 @@
             };
         }
 
-        document.getElementById('exportBtn').addEventListener('click', () => {
+        // 检查点数是否超支
+        function isPointsOverspent() {
+            const jobOverspent = totalJobPoints !== null && (totalJobPoints - usedJobPoints) < 0;
+            const hobbyOverspent = totalHobbyPoints !== null && (totalHobbyPoints - usedHobbyPoints) < 0;
+            return jobOverspent || hobbyOverspent;
+        }
+
+        // 更新审核按钮状态
+        function updateReviewButton() {
+            const reviewBtn = document.getElementById('exportBtn');
+            if (isPointsOverspent()) {
+                reviewBtn.disabled = true;
+                reviewBtn.textContent = '⚠️ 点数超支，无法审核';
+            } else {
+                reviewBtn.disabled = false;
+                reviewBtn.textContent = '📋 角色卡审核';
+            }
+        }
+
+        // 将 input 值转换为文本显示（用于截图）
+        function convertInputsToText(container) {
+            const inputs = container.querySelectorAll('input[type="number"], input[type="text"]');
+            const restoreList = [];
+            
+            inputs.forEach(input => {
+                const value = input.value || '0';
+                const span = document.createElement('span');
+                span.textContent = value;
+                span.className = 'input-snapshot';
+                span.style.cssText = `
+                    display: inline-block;
+                    width: ${input.offsetWidth}px;
+                    height: ${input.offsetHeight}px;
+                    line-height: ${input.offsetHeight}px;
+                    text-align: center;
+                    color: #fff;
+                    background: rgba(0, 0, 0, 0.3);
+                    border-radius: 6px;
+                    font-size: ${window.getComputedStyle(input).fontSize};
+                `;
+                
+                input.style.display = 'none';
+                input.parentNode.insertBefore(span, input.nextSibling);
+                restoreList.push({ input, span });
+            });
+            
+            return restoreList;
+        }
+        
+        // 恢复 input 显示
+        function restoreInputs(restoreList) {
+            restoreList.forEach(({ input, span }) => {
+                input.style.display = '';
+                span.remove();
+            });
+        }
+
+        // 提交角色卡审核
+        document.getElementById('exportBtn').addEventListener('click', async () => {
             const data = getFormData();
             if (!data.name) { alert('请填写角色名称'); return; }
-            document.getElementById('exportText').value = '.pc new ' + JSON.stringify(data);
-            document.getElementById('exportResult').style.display = 'block';
+            if (isPointsOverspent()) { alert('点数超支，无法提交审核'); return; }
+
+            const btn = document.getElementById('exportBtn');
+            btn.disabled = true;
+            btn.textContent = '📸 生成截图中...';
+
+            let restoreList = [];
+            try {
+                // 使用 html2canvas 截图
+                const container = document.querySelector('.container');
+                
+                // 截图前将 input 转换为文本
+                restoreList = convertInputsToText(container);
+                
+                // 等待 DOM 更新
+                await new Promise(r => setTimeout(r, 100));
+                
+                const canvas = await html2canvas(container, {
+                    backgroundColor: '#1a1a2e',
+                    scale: 2,
+                    useCORS: true,
+                });
+                const imageData = canvas.toDataURL('image/png');
+                
+                // 恢复 input 显示
+                restoreInputs(restoreList);
+                restoreList = [];
+
+                btn.textContent = '📤 提交审核中...';
+
+                // 提交审核
+                const resp = await fetch('/api/character/review', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        token: '{{ token }}',
+                        char_name: data.name,
+                        image_data: imageData,
+                        char_data: data,
+                    }),
+                });
+                const result = await resp.json();
+
+                if (result.success) {
+                    document.getElementById('exportText').value = `.cc ${data.name}`;
+                    document.getElementById('exportResult').style.display = 'block';
+                    showToast('审核已提交！在 KOOK 中使用 .cc ' + data.name + ' 发起审核', 'success');
+                } else {
+                    alert('提交失败: ' + (result.detail || result.message));
+                }
+            } catch (err) {
+                alert('错误: ' + err.message);
+                // 确保恢复 input
+                if (restoreList.length > 0) {
+                    restoreInputs(restoreList);
+                }
+            } finally {
+                updateReviewButton();
+            }
         });
 
         document.getElementById('copyBtn').addEventListener('click', () => {
@@ -898,34 +1031,66 @@
             setTimeout(() => document.getElementById('copyBtn').textContent = '复制', 2000);
         });
 
-        document.getElementById('charForm').addEventListener('submit', async (e) => {
-            e.preventDefault();
-            const btn = document.getElementById('submitBtn');
-            btn.disabled = true; btn.textContent = '创建中...';
-
-            const charData = getFormData();
-            const formData = new FormData();
-            formData.append('token', '{{ token }}');
-            formData.append('name', charData.name);
-            formData.append('str_val', charData.attributes.STR);
-            formData.append('con', charData.attributes.CON);
-            formData.append('siz', charData.attributes.SIZ);
-            formData.append('dex', charData.attributes.DEX);
-            formData.append('app', charData.attributes.APP);
-            formData.append('int_val', charData.attributes.INT);
-            formData.append('pow_val', charData.attributes.POW);
-            formData.append('edu', charData.attributes.EDU);
-            formData.append('luk', charData.attributes.LUK);
-            formData.append('hp', charData.hp);
-            formData.append('mp', charData.mp);
-            formData.append('san', charData.san);
-            formData.append('mov', charData.mov);
-            formData.append('build', charData.build);
-            formData.append('db', charData.db);
-            formData.append('skills', Object.entries(charData.skills).map(([k, v]) => `${k}:${v}`).join('\n'));
+        // 检查审核状态并更新创建按钮
+        async function checkReviewStatus() {
+            const charName = document.getElementById('charName').value.trim();
+            if (!charName) return;
 
             try {
-                const resp = await fetch('/api/character/create', { method: 'POST', body: formData });
+                const resp = await fetch(`/api/character/review/${encodeURIComponent(charName)}`);
+                if (resp.ok) {
+                    const data = await resp.json();
+                    const submitBtn = document.getElementById('submitBtn');
+                    if (data.approved) {
+                        submitBtn.disabled = false;
+                        submitBtn.textContent = '✨ 创建角色卡 (已审核通过)';
+                        submitBtn.classList.add('approved');
+                    }
+                }
+            } catch (err) {
+                // 忽略错误
+            }
+        }
+
+        // 定期检查审核状态
+        setInterval(checkReviewStatus, 5000);
+
+        document.getElementById('charForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const charName = document.getElementById('charName').value.trim();
+            if (!charName) { alert('请填写角色名称'); return; }
+
+            const btn = document.getElementById('submitBtn');
+            
+            // 检查审核状态
+            try {
+                const resp = await fetch(`/api/character/review/${encodeURIComponent(charName)}`);
+                if (!resp.ok) {
+                    alert('请先提交角色卡审核，在 KOOK 中使用 .cc 命令发起审核');
+                    return;
+                }
+                const reviewData = await resp.json();
+                if (!reviewData.approved) {
+                    alert('角色卡尚未审核通过，请等待 KP 审核');
+                    return;
+                }
+            } catch (err) {
+                alert('请先提交角色卡审核');
+                return;
+            }
+
+            btn.disabled = true;
+            btn.textContent = '创建中...';
+
+            try {
+                const resp = await fetch('/api/character/create-approved', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        char_name: charName,
+                        user_id: '{{ user_id }}',
+                    }),
+                });
                 const data = await resp.json();
                 if (data.success) {
                     document.getElementById('charForm').style.display = 'none';
@@ -934,11 +1099,13 @@
                     document.getElementById('result').style.display = 'block';
                 } else {
                     alert('失败: ' + (data.detail || data.message));
-                    btn.disabled = false; btn.textContent = '✨ 创建角色卡';
+                    btn.disabled = false;
+                    btn.textContent = '✨ 创建角色卡';
                 }
             } catch (err) {
                 alert('错误: ' + err.message);
-                btn.disabled = false; btn.textContent = '✨ 创建角色卡';
+                btn.disabled = false;
+                btn.textContent = '✨ 创建角色卡';
             }
         });
 

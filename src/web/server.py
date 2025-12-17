@@ -1,6 +1,7 @@
 """Web 服务器"""
 import asyncio
 import time
+import base64
 from fastapi import FastAPI, Request, Form, HTTPException
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
@@ -292,11 +293,98 @@ def create_app(db: Database, char_manager: CharacterManager) -> FastAPI:
             "grow_tokens": len(grow_tokens)
         }
 
+    # ===== 角色卡审核系统 (使用数据库存储) =====
+
+    @app.post("/api/character/review")
+    async def submit_review(request: Request):
+        """提交角色卡审核"""
+        body = await request.json()
+        token = body.get("token")
+        char_name = body.get("char_name")
+        image_data = body.get("image_data")  # base64 编码的图片
+        char_data = body.get("char_data")  # 角色数据
+
+        user_id = get_user_from_token(token)
+        if not user_id:
+            raise HTTPException(status_code=403, detail="链接已过期，请重新获取")
+
+        if not char_name or not image_data or not char_data:
+            raise HTTPException(status_code=400, detail="缺少必要参数")
+
+        # 保存到数据库
+        await db.save_character_review(
+            char_name=char_name,
+            user_id=user_id,
+            image_data=image_data,
+            char_data=char_data,
+        )
+
+        logger.info(f"角色卡审核提交: {char_name} by {user_id}")
+        return {"success": True, "message": f"角色卡 {char_name} 已提交审核"}
+
+    @app.get("/api/character/review/{char_name}")
+    async def get_review(char_name: str):
+        """获取待审核角色卡"""
+        review = await db.get_character_review(char_name)
+        if not review:
+            raise HTTPException(status_code=404, detail="未找到待审核角色卡")
+        return {
+            "char_name": review["char_name"],
+            "user_id": review["user_id"],
+            "char_data": review["char_data"],
+            "approved": review["approved"],
+        }
+
+    @app.post("/api/character/create-approved")
+    async def create_approved_character(request: Request):
+        """创建已审核通过的角色卡"""
+        body = await request.json()
+        char_name = body.get("char_name")
+        user_id = body.get("user_id")
+
+        review = await db.get_character_review(char_name)
+        if not review:
+            raise HTTPException(status_code=404, detail="未找到待审核角色卡")
+
+        if review["user_id"] != user_id:
+            raise HTTPException(status_code=403, detail="无权操作")
+
+        if not review["approved"]:
+            raise HTTPException(status_code=400, detail="角色卡尚未审核通过")
+
+        # 创建角色
+        char_data = review["char_data"]
+        char = Character(
+            name=char_data["name"],
+            user_id=user_id,
+            attributes=char_data["attributes"],
+            skills=char_data["skills"],
+            hp=char_data["hp"],
+            max_hp=char_data["hp"],
+            mp=char_data["mp"],
+            max_mp=char_data["mp"],
+            san=char_data["san"],
+            max_san=99,
+            luck=char_data["attributes"].get("LUK", 50),
+            mov=char_data.get("mov", 8),
+            build=char_data.get("build", 0),
+            db=char_data.get("db", "0"),
+        )
+
+        await char_manager.add(char)
+
+        # 删除审核数据
+        await db.delete_character_review(char_name)
+
+        logger.info(f"角色卡创建成功: {char_name} by {user_id}")
+        return {"success": True, "message": f"角色 {char_name} 创建成功！"}
+
     # 将方法附加到 app
     app.generate_token = generate_token
     app.generate_grow_token = generate_grow_token
     app.start_cleanup_task = start_cleanup_task
     app.stop_cleanup_task = stop_cleanup_task
     app.get_token_stats = get_token_stats
+    app.db = db  # 暴露数据库实例供 handler 使用
 
     return app

@@ -154,3 +154,30 @@ class KookClient:
             json=payload
         ) as resp:
             return await resp.json()
+
+    async def upload_asset(self, file_data: bytes, filename: str = "image.png") -> str | None:
+        """
+        上传媒体文件到 KOOK
+        
+        Args:
+            file_data: 文件二进制数据
+            filename: 文件名
+        
+        Returns:
+            上传成功返回 URL，失败返回 None
+        """
+        import aiohttp
+        
+        form = aiohttp.FormData()
+        form.add_field("file", file_data, filename=filename, content_type="image/png")
+        
+        async with self._session.post(
+            f"{self.api_base}/asset/create",
+            headers=self.headers,
+            data=form
+        ) as resp:
+            data = await resp.json()
+            if data.get("code") == 0:
+                return data.get("data", {}).get("url")
+            logger.error(f"上传文件失败: {data}")
+            return None
