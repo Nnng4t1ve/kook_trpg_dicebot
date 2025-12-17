@@ -202,7 +202,7 @@ class CardBuilder:
         return json.dumps([card])
 
     @staticmethod
-    def build_grow_character_card(char_name: str, skills: List[str]) -> str:
+    def build_grow_character_card(char_name: str, skills: List[str], initiator_id: str) -> str:
         """构建角色成长的交互卡片"""
         skills_text = "、".join(skills)
         card = {
@@ -228,6 +228,15 @@ class CardBuilder:
                     }
                 },
                 {
+                    "type": "context",
+                    "elements": [
+                        {
+                            "type": "kmarkdown",
+                            "content": f"只有 (met){initiator_id}(met) 可以获取链接"
+                        }
+                    ]
+                },
+                {
                     "type": "action-group",
                     "elements": [
                         {
@@ -236,7 +245,8 @@ class CardBuilder:
                             "value": json.dumps({
                                 "action": "grow_character",
                                 "char_name": char_name,
-                                "skills": skills
+                                "skills": skills,
+                                "initiator_id": initiator_id
                             }),
                             "click": "return-val",
                             "text": {

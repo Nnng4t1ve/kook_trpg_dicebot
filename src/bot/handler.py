@@ -617,7 +617,7 @@ class MessageHandler:
             return (f"角色 {char_name} 没有这些技能: {', '.join(skill_names)}", False)
 
         # 返回卡片消息
-        card = CardBuilder.build_grow_character_card(char_name, valid_skills)
+        card = CardBuilder.build_grow_character_card(char_name, valid_skills, user_id)
         return (card, True)
 
     async def _handle_create_character_button(self, user_id: str):
@@ -643,9 +643,15 @@ class MessageHandler:
 
         char_name = value.get("char_name")
         skills = value.get("skills", [])
+        initiator_id = value.get("initiator_id")
 
         if not char_name or not skills:
             await self.client.send_direct_message(user_id, "参数错误")
+            return
+
+        # 验证是否是发起者
+        if initiator_id and user_id != initiator_id:
+            await self.client.send_direct_message(user_id, "只有发起者可以获取成长链接")
             return
 
         from ..config import settings
@@ -1867,7 +1873,7 @@ class MessageHandler:
                 need_con_check = True
 
             status_level, status_desc = get_hp_status(npc.hp, npc.max_hp)
-            hp_bar = get_hp_bar(npc.hp, npc.max_hp)
+            hp_bar = get_hp_bar(npc.hp, npc.max_hp, hidden=True)
 
             card = CardBuilder.build_damage_result_card(
                 target_name=npc.name,

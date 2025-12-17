@@ -70,7 +70,7 @@ def get_hp_status(current_hp: int, max_hp: int) -> Tuple[str, str]:
         return ("重伤", random.choice(STATUS_CRITICAL))
 
 
-def get_hp_bar(current_hp: int, max_hp: int, length: int = 10) -> str:
+def get_hp_bar(current_hp: int, max_hp: int, length: int = 10, hidden: bool = False) -> str:
     """
     生成 HP 条形图
     
@@ -78,10 +78,14 @@ def get_hp_bar(current_hp: int, max_hp: int, length: int = 10) -> str:
         current_hp: 当前 HP
         max_hp: 最大 HP
         length: 条形图长度
+        hidden: 是否隐藏实际血量（用于 NPC，只显示空条）
     
     Returns:
-        HP 条形图字符串，如 "████████░░"
+        HP 条形图字符串，如 "████████░░" 或 "░░░░░░░░░░"（隐藏模式）
     """
+    if hidden:
+        return "░" * length
+    
     if max_hp <= 0:
         return "░" * length
     
