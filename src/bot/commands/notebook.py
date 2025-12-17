@@ -40,6 +40,8 @@ class NotebookCommand(BaseCommand):
             return await self._view_entry(sub_args)
         elif sub_cmd == "all":
             return await self._list_notebooks()
+        elif sub_cmd == "img":
+            return await self._insert_image(sub_args)
         elif sub_cmd == "help":
             return CommandResult.text(self._help_text())
         else:
@@ -53,6 +55,7 @@ class NotebookCommand(BaseCommand):
             "`.note c <名称>` - 创建新记事本\n"
             "`.note s <名称>` - 切换记事本\n"
             "`.note i <内容>` - 记录内容\n"
+            "`.note img <名称>` - 记录图片（发图时附带命令）\n"
             "`.note list` - 查看记录列表\n"
             "`.note w <序号>` - 查看具体内容"
         )
@@ -136,6 +139,48 @@ class NotebookCommand(BaseCommand):
         
         return CommandResult.text(f"📝 已记录到 **{notebook_name}**")
     
+    async def _insert_image(self, args: str) -> CommandResult:
+        """记录图片（发送图片时附带命令，或直接提供URL）"""
+        args = args.strip()
+        
+        # 如果没有参数或只有名称没有URL，提示用户正确用法
+        # 注意：图片+文字一起发送的情况在 handler 中处理
+        if not args:
+            return CommandResult.text(
+                "📷 **记录图片方法**\n"
+                "1. 发送图片时附带文字: `.note img <名称>`\n"
+                "2. 或直接提供URL: `.note img <名称> <图片URL>`"
+            )
+        
+        parts = args.split(maxsplit=1)
+        image_name = parts[0].strip()
+        
+        if len(parts) < 2:
+            # 只有名称没有URL，提示用户
+            return CommandResult.text(
+                "📷 **记录图片方法**\n"
+                "1. 发送图片时附带文字: `.note img <名称>`\n"
+                "2. 或直接提供URL: `.note img <名称> <图片URL>`"
+            )
+        
+        image_url = parts[1].strip()
+        if not image_url.startswith(("http://", "https://")):
+            return CommandResult.text("请提供有效的图片URL（以 http:// 或 https:// 开头）")
+        
+        notebook_name = _user_active_notebook.get(self.ctx.user_id)
+        if not notebook_name:
+            return CommandResult.text("请先创建或切换记事本: `.note c <名称>` 或 `.note s <名称>`")
+        
+        notebook = await self.ctx.db.notebooks.find_by_name(notebook_name)
+        if not notebook:
+            return CommandResult.text(f"记事本 **{notebook_name}** 不存在，请重新创建")
+        
+        entry = await self.ctx.db.notebook_entries.add_entry(
+            notebook.id, f"[图片] {image_name}", self.ctx.user_id, image_url=image_url
+        )
+        
+        return CommandResult.text(f"🖼️ 图片 **{image_name}** 已记录到 **{notebook_name}**")
+    
     async def _list_entries(self, page: int) -> CommandResult:
         notebook_name = _user_active_notebook.get(self.ctx.user_id)
         if not notebook_name:
@@ -192,8 +237,10 @@ class NotebookCommand(BaseCommand):
         lines = []
         for i, entry in enumerate(entries):
             idx = start_idx + i
+            # 图片条目显示图片图标
+            prefix = "🖼️ " if entry.image_url else ""
             content_preview = entry.content[:30] + "..." if len(entry.content) > 30 else entry.content
-            lines.append(f"**{idx}.** {content_preview}")
+            lines.append(f"**{idx}.** {prefix}{content_preview}")
         
         builder.section("\n".join(lines))
         builder.context(f"第 {page}/{total_pages} 页 · 共 {total} 条记录")
@@ -224,5 +271,10 @@ class NotebookCommand(BaseCommand):
         builder.header(f"📒 {notebook_name} - 第 {index} 条")
         builder.divider()
         builder.section(entry.content)
+        
+        # 如果有图片，显示图片
+        if entry.image_url:
+            builder.image(entry.image_url)
+        
         builder.context(f"记录者: {entry.created_by} · {entry.created_at.strftime('%Y-%m-%d %H:%M')}")
         return builder.build()

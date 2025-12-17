@@ -78,6 +78,7 @@ class HelpCommand(BaseCommand):
 `.note c <名称>` - 创建新记事本
 `.note s <名称>` - 切换记事本
 `.note i <内容>` - 记录内容
+`.note img <名称>` - 记录图片（发图时附带命令）
 `.note list` - 查看记录列表
 `.note w <序号>` - 查看具体内容""")
 

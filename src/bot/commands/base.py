@@ -25,6 +25,9 @@ class CommandContext:
     check_manager: "CheckManager"
     db: Any  # Database instance
     web_app: Optional[Any] = None  # Web application instance
+    
+    # 消息附件（图片等）
+    attachments: list = field(default_factory=list)
 
 
 @dataclass

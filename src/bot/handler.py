@@ -28,16 +28,81 @@ class MessageHandler:
         msg_type = event.get("type")
         extra = event.get("extra", {})
         
+        # 调试：记录所有消息类型和内容
+        author_id = event.get("author_id")
+        content = event.get("content", "")[:100]  # 只取前100字符
+        logger.info(f"EVENT | type={msg_type} | user={author_id} | content={content}")
+        
         # 处理按钮点击事件 (系统消息 type=255)
         if msg_type == 255 and extra.get("type") == "message_btn_click":
             await self._handle_button_click(extra.get("body", {}))
             return
         
-        # 只处理文字消息 (type 1 或 9)
-        if msg_type not in (1, 9):
+        # 处理文字消息 (type 1, 9) 和卡片消息 (type 10，用户发送的图片)
+        if msg_type not in (1, 9, 10):
             return
         
         content = event.get("content", "").strip()
+        
+        # 卡片消息 (type=10) - KOOK 把用户发送的图片作为卡片消息发送
+        if msg_type == 10:
+            from .commands.notebook import _user_active_notebook
+            
+            author_id = event.get("author_id")
+            target_id = event.get("target_id")
+            channel_type = event.get("channel_type")
+            
+            # 忽略机器人自己的消息
+            author = extra.get("author", {})
+            if author.get("bot"):
+                return
+            
+            # 从卡片中提取图片和文字
+            image_url, card_text = self._extract_image_and_text_from_card(content)
+            if not image_url:
+                return
+            
+            # 检查文字中是否包含 .note img 命令
+            cmd_text = card_text.strip() if card_text else ""
+            for prefix in self.command_prefixes:
+                if cmd_text.startswith(prefix):
+                    cmd_str = cmd_text[len(prefix):]
+                    parts = cmd_str.split(maxsplit=2)
+                    if len(parts) >= 2 and parts[0].lower() == "note" and parts[1].lower() == "img":
+                        # 找到 .note img 命令，直接保存图片
+                        image_name = parts[2].strip() if len(parts) > 2 else "未命名图片"
+                        
+                        notebook_name = _user_active_notebook.get(author_id)
+                        if not notebook_name:
+                            msg = "请先创建或切换记事本: `.note c <名称>` 或 `.note s <名称>`"
+                            if channel_type == "GROUP":
+                                await self.client.send_message(target_id, msg, msg_type=9)
+                            else:
+                                await self.client.send_direct_message(author_id, msg, msg_type=9)
+                            return
+                        
+                        notebook = await self.db.notebooks.find_by_name(notebook_name)
+                        if not notebook:
+                            msg = f"记事本 **{notebook_name}** 不存在"
+                            if channel_type == "GROUP":
+                                await self.client.send_message(target_id, msg, msg_type=9)
+                            else:
+                                await self.client.send_direct_message(author_id, msg, msg_type=9)
+                            return
+                        
+                        # 保存图片到记事本
+                        await self.db.notebook_entries.add_entry(
+                            notebook.id, f"[图片] {image_name}", author_id, image_url=image_url
+                        )
+                        
+                        msg = f"🖼️ 图片 **{image_name}** 已记录到 **{notebook_name}**"
+                        logger.info(f"IMG_SAVE | user={author_id} | notebook={notebook_name} | name={image_name}")
+                        if channel_type == "GROUP":
+                            await self.client.send_message(target_id, msg, msg_type=9)
+                        else:
+                            await self.client.send_direct_message(author_id, msg, msg_type=9)
+                        return
+            return
         
         # 检查是否以任意命令前缀开头
         prefix_used = None
@@ -62,6 +127,17 @@ class MessageHandler:
         
         author_name = author.get("nickname") or author.get("username", "")
         
+        # 提取附件（图片等）- KOOK API 中 attachments 是 Map 而不是数组
+        attachments_raw = extra.get("attachments")
+        attachments = []
+        if attachments_raw:
+            if isinstance(attachments_raw, dict):
+                # 单个附件（Map格式）
+                attachments = [attachments_raw]
+            elif isinstance(attachments_raw, list):
+                # 多个附件（数组格式）
+                attachments = attachments_raw
+        
         # 创建命令上下文
         ctx = CommandContext(
             user_id=author_id,
@@ -75,6 +151,7 @@ class MessageHandler:
             check_manager=self.check_manager,
             db=self.db,
             web_app=self.web_app,
+            attachments=attachments,
         )
         
         # 执行命令
@@ -711,3 +788,50 @@ class MessageHandler:
         
         card = builder.build()
         await self.client.send_message(channel_id, card, msg_type=10)
+
+    def _extract_image_and_text_from_card(self, content: str) -> tuple[str | None, str | None]:
+        """从卡片消息中提取图片 URL 和文字内容"""
+        image_url = None
+        text_content = None
+        
+        try:
+            cards = json.loads(content)
+            if not isinstance(cards, list):
+                return None, None
+            
+            for card in cards:
+                modules = card.get("modules", [])
+                for module in modules:
+                    module_type = module.get("type")
+                    
+                    # container 类型包含图片
+                    if module_type == "container":
+                        elements = module.get("elements", [])
+                        for elem in elements:
+                            if elem.get("type") == "image" and not image_url:
+                                image_url = elem.get("src")
+                    
+                    # image-group 类型也可能包含图片
+                    elif module_type == "image-group":
+                        elements = module.get("elements", [])
+                        for elem in elements:
+                            if elem.get("type") == "image" and not image_url:
+                                image_url = elem.get("src")
+                    
+                    # section 类型包含文字
+                    elif module_type == "section":
+                        text_obj = module.get("text", {})
+                        if text_obj.get("type") in ("plain-text", "kmarkdown"):
+                            text_content = text_obj.get("content", "")
+                    
+                    # context 类型也可能包含文字
+                    elif module_type == "context":
+                        elements = module.get("elements", [])
+                        for elem in elements:
+                            if elem.get("type") in ("plain-text", "kmarkdown"):
+                                text_content = elem.get("content", "")
+                                
+        except (json.JSONDecodeError, TypeError, KeyError):
+            pass
+        
+        return image_url, text_content

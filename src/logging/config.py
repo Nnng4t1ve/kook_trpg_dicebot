@@ -5,6 +5,7 @@ Requirements: 4.1, 4.2, 4.3
 """
 import sys
 import os
+import warnings
 from pathlib import Path
 from typing import Optional
 from loguru import logger
@@ -25,6 +26,15 @@ FILE_FORMAT = (
     "{name}:{function}:{line} | "
     "{message}"
 )
+
+
+def _showwarning(message, category, filename, lineno, file=None, line=None):
+    """自定义警告处理函数，将警告重定向到 loguru"""
+    # 简化文件路径显示
+    short_filename = Path(filename).name if filename else "unknown"
+    # 提取警告消息
+    msg = str(message).strip()
+    logger.warning(f"{category.__name__} | {short_filename}:{lineno} | {msg}")
 
 
 def setup_logging(
@@ -51,6 +61,9 @@ def setup_logging(
     """
     # 移除默认处理器
     logger.remove()
+    
+    # 捕获 Python warnings 并重定向到 loguru
+    warnings.showwarning = _showwarning
     
     # 从环境变量获取日志级别（优先级最高）
     env_level = os.environ.get("LOG_LEVEL", level).upper()

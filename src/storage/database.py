@@ -233,11 +233,26 @@ class Database:
                         notebook_id INT NOT NULL,
                         content TEXT NOT NULL,
                         created_by VARCHAR(64) NOT NULL,
+                        image_url VARCHAR(512),
                         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                         INDEX idx_notebook (notebook_id),
                         FOREIGN KEY (notebook_id) REFERENCES notebooks(id) ON DELETE CASCADE
                     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
                 """)
+                
+                # 添加 image_url 列（如果不存在）
+                await cur.execute("""
+                    SELECT COUNT(*) FROM information_schema.COLUMNS 
+                    WHERE TABLE_SCHEMA = DATABASE() 
+                    AND TABLE_NAME = 'notebook_entries' 
+                    AND COLUMN_NAME = 'image_url'
+                """)
+                row = await cur.fetchone()
+                if row[0] == 0:
+                    await cur.execute("""
+                        ALTER TABLE notebook_entries 
+                        ADD COLUMN image_url VARCHAR(512) AFTER created_by
+                    """)
 
     # ===== 兼容旧接口 =====
     # 以下方法保持向后兼容，内部使用仓库实现

@@ -24,6 +24,7 @@ class NotebookEntry:
     notebook_id: int
     content: str
     created_by: str
+    image_url: str = None
     created_at: datetime = None
     id: int = None
 
@@ -74,22 +75,29 @@ class NotebookEntryRepository(BaseRepository[NotebookEntry]):
             notebook_id=data.get("notebook_id"),
             content=data.get("content"),
             created_by=data.get("created_by"),
+            image_url=data.get("image_url"),
             created_at=data.get("created_at"),
         )
     
     def _model_to_row(self, entity: NotebookEntry) -> Dict[str, Any]:
-        return {
+        row = {
             "notebook_id": entity.notebook_id,
             "content": entity.content,
             "created_by": entity.created_by,
         }
+        if entity.image_url:
+            row["image_url"] = entity.image_url
+        return row
     
-    async def add_entry(self, notebook_id: int, content: str, created_by: str) -> NotebookEntry:
+    async def add_entry(
+        self, notebook_id: int, content: str, created_by: str, image_url: str = None
+    ) -> NotebookEntry:
         """添加条目"""
         entry = NotebookEntry(
             notebook_id=notebook_id,
             content=content,
             created_by=created_by,
+            image_url=image_url,
         )
         entry_id = await self.insert(entry)
         entry.id = entry_id
