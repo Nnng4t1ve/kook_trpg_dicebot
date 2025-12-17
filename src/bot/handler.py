@@ -28,10 +28,10 @@ class MessageHandler:
         msg_type = event.get("type")
         extra = event.get("extra", {})
         
-        # 调试：记录所有消息类型和内容
+        # 调试：记录所有消息类型和内容（生产环境设置日志级别为 INFO 可跳过）
         author_id = event.get("author_id")
         content = event.get("content", "")[:100]  # 只取前100字符
-        logger.info(f"EVENT | type={msg_type} | user={author_id} | content={content}")
+        logger.debug(f"EVENT | type={msg_type} | user={author_id} | content={content}")
         
         # 处理按钮点击事件 (系统消息 type=255)
         if msg_type == 255 and extra.get("type") == "message_btn_click":
