@@ -10,6 +10,7 @@ from . import rule
 from . import npc
 from . import misc
 from . import notebook
+from . import push
 
 __all__ = [
     "CommandRegistry",

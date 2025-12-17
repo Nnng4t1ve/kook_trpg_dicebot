@@ -104,17 +104,7 @@ class MessageHandler:
                         return
             return
         
-        # 检查是否以任意命令前缀开头
-        prefix_used = None
-        for prefix in self.command_prefixes:
-            if content.startswith(prefix):
-                prefix_used = prefix
-                break
-        
-        if not prefix_used:
-            return
-        
-        # 解析命令
+        # 解析基本信息
         channel_type = event.get("channel_type")
         target_id = event.get("target_id")
         author_id = event.get("author_id")
@@ -126,6 +116,26 @@ class MessageHandler:
             return
         
         author_name = author.get("nickname") or author.get("username", "")
+        
+        # 检查是否有等待推送的状态
+        from .commands.push import is_pending_push, clear_pending_push, build_push_card
+        if channel_type == "GROUP" and is_pending_push(author_id, target_id):
+            # 清除等待状态
+            clear_pending_push(author_id, target_id)
+            
+            # 处理推送
+            await self._handle_push_message(content, author_id, author_name, target_id, msg_id)
+            return
+        
+        # 检查是否以任意命令前缀开头
+        prefix_used = None
+        for prefix in self.command_prefixes:
+            if content.startswith(prefix):
+                prefix_used = prefix
+                break
+        
+        if not prefix_used:
+            return
         
         # 提取附件（图片等）- KOOK API 中 attachments 是 Map 而不是数组
         attachments_raw = extra.get("attachments")
@@ -169,6 +179,41 @@ class MessageHandler:
             else:
                 await self.client.send_direct_message(author_id, result.content, msg_type=msg_type)
 
+    async def _handle_push_message(
+        self, content: str, author_id: str, author_name: str, channel_id: str, msg_id: str
+    ):
+        """处理推送置顶消息"""
+        from .commands.push import build_push_card
+        
+        # 构建卡片
+        card = build_push_card(content, author_name)
+        
+        # 发送卡片消息
+        resp = await self.client.send_message(channel_id, card, msg_type=10)
+        
+        if resp.get("code") != 0:
+            logger.error(f"PUSH_SEND_ERR | user={author_id} | resp={resp}")
+            await self.client.send_message(channel_id, "❌ 发送卡片失败", msg_type=9)
+            return
+        
+        # 获取新消息的 ID
+        new_msg_id = resp.get("data", {}).get("msg_id")
+        if not new_msg_id:
+            logger.error(f"PUSH_NO_MSG_ID | user={author_id} | resp={resp}")
+            return
+        
+        # 置顶新消息
+        pin_success = await self.client.pin_message(new_msg_id, channel_id)
+        if not pin_success:
+            logger.warning(f"PUSH_PIN_FAIL | user={author_id} | msg_id={new_msg_id}")
+            await self.client.send_message(channel_id, "⚠️ 卡片已发送，但置顶失败（可能缺少管理消息权限）", msg_type=9)
+        
+        # 删除用户原消息
+        delete_success = await self.client.delete_message(msg_id)
+        if not delete_success:
+            logger.warning(f"PUSH_DEL_FAIL | user={author_id} | msg_id={msg_id}")
+        
+        logger.info(f"PUSH_OK | user={author_id} | channel={channel_id} | pin={pin_success} | del={delete_success}")
 
     async def _handle_button_click(self, body: dict):
         """处理按钮点击事件"""

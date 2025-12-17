@@ -83,7 +83,10 @@ class HelpCommand(BaseCommand):
 `.note i <内容>` - 记录内容
 `.note img <名称>` - 记录图片（发图时附带命令）
 `.note list` - 查看记录列表
-`.note w <序号>` - 查看具体内容""")
+`.note w <序号>` - 查看具体内容
+
+**其他命令**
+`.push` - 将下一条消息发布为卡片并置顶""")
 
 
 @command("ri")

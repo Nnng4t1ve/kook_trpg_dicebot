@@ -197,3 +197,68 @@ class KookClient:
                 return data.get("data", {}).get("url")
             logger.error(f"上传文件失败: {data}")
             return None
+
+    async def delete_message(self, msg_id: str) -> bool:
+        """
+        删除频道消息
+        
+        Args:
+            msg_id: 消息 ID
+        
+        Returns:
+            是否删除成功
+        """
+        async with self._session.post(
+            f"{self.api_base}/message/delete",
+            headers=self.headers,
+            json={"msg_id": msg_id}
+        ) as resp:
+            data = await resp.json()
+            if data.get("code") == 0:
+                return True
+            logger.error(f"删除消息失败: {data}")
+            return False
+
+    async def pin_message(self, msg_id: str, channel_id: str) -> bool:
+        """
+        置顶频道消息
+        
+        Args:
+            msg_id: 消息 ID
+            channel_id: 频道 ID
+        
+        Returns:
+            是否置顶成功
+        """
+        async with self._session.post(
+            f"{self.api_base}/message/pin",
+            headers=self.headers,
+            json={"msg_id": msg_id, "target_id": channel_id}
+        ) as resp:
+            data = await resp.json()
+            if data.get("code") == 0:
+                return True
+            logger.error(f"置顶消息失败: {data}")
+            return False
+
+    async def unpin_message(self, msg_id: str, channel_id: str) -> bool:
+        """
+        取消置顶频道消息
+        
+        Args:
+            msg_id: 消息 ID
+            channel_id: 频道 ID
+        
+        Returns:
+            是否取消成功
+        """
+        async with self._session.post(
+            f"{self.api_base}/message/unpin",
+            headers=self.headers,
+            json={"msg_id": msg_id, "target_id": channel_id}
+        ) as resp:
+            data = await resp.json()
+            if data.get("code") == 0:
+                return True
+            logger.error(f"取消置顶失败: {data}")
+            return False
