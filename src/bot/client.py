@@ -20,6 +20,14 @@ class KookClient:
         self._running = False
         self._message_handler: Optional[Callable] = None
         self._heartbeat_task: Optional[asyncio.Task] = None
+        
+        # 性能优化配置
+        self._connector_config = {
+            "limit": 100,  # 总连接池大小
+            "limit_per_host": 30,  # 每个主机的连接数
+            "ttl_dns_cache": 300,  # DNS 缓存时间
+            "use_dns_cache": True,
+        }
     
     @property
     def headers(self) -> dict:
@@ -36,7 +44,15 @@ class KookClient:
     async def start(self, message_handler: Callable):
         """启动客户端"""
         self._message_handler = message_handler
-        self._session = aiohttp.ClientSession()
+        
+        # 创建优化的连接器和会话
+        connector = aiohttp.TCPConnector(**self._connector_config)
+        timeout = aiohttp.ClientTimeout(total=30, connect=10)
+        self._session = aiohttp.ClientSession(
+            connector=connector,
+            timeout=timeout,
+            headers={"User-Agent": "KOOK-Bot/1.0"}
+        )
         self._running = True
         
         while self._running:

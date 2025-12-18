@@ -177,7 +177,8 @@ class Database:
                         data JSON NOT NULL,
                         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                         UNIQUE KEY uk_user_name (user_id, name),
-                        INDEX idx_user (user_id)
+                        INDEX idx_user (user_id),
+                        INDEX idx_created_at (created_at)
                     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
                 """)
 

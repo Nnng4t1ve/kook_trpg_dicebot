@@ -10,6 +10,9 @@ class LRUCache:
     def __init__(self, max_size: int = 500):
         self.max_size = max_size
         self._cache: OrderedDict[str, Character] = OrderedDict()
+        # 性能统计
+        self._hits = 0
+        self._misses = 0
     
     def _make_key(self, user_id: str, name: str) -> str:
         return f"{user_id}:{name}"
@@ -17,8 +20,10 @@ class LRUCache:
     def get(self, user_id: str, name: str) -> Optional[Character]:
         key = self._make_key(user_id, name)
         if key in self._cache:
+            self._hits += 1
             self._cache.move_to_end(key)
             return self._cache[key]
+        self._misses += 1
         return None
     
     def set(self, char: Character):
@@ -129,8 +134,13 @@ class CharacterManager:
     
     def get_cache_stats(self) -> dict:
         """获取缓存统计信息"""
+        total_requests = self._cache._hits + self._cache._misses
+        hit_rate = self._cache._hits / total_requests if total_requests > 0 else 0
         return {
             "cache_size": len(self._cache),
             "max_size": self._cache.max_size,
-            "active_users": len(self._active)
+            "active_users": len(self._active),
+            "hit_rate": f"{hit_rate:.2%}",
+            "hits": self._cache._hits,
+            "misses": self._cache._misses
         }
