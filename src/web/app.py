@@ -66,11 +66,13 @@ def create_app(
     
     # 注册路由
     from .routers import character_router, grow_router, health_router, review_router
+    from .routers.logs import router as logs_router
     
     app.include_router(character_router, prefix="/api/character", tags=["character"])
     app.include_router(review_router, prefix="/api/review", tags=["review"])
     app.include_router(grow_router, prefix="/api/grow", tags=["grow"])
     app.include_router(health_router, prefix="/health", tags=["health"])
+    app.include_router(logs_router, tags=["logs"])
     
     # 注册页面路由
     from .routers.pages import pages_router

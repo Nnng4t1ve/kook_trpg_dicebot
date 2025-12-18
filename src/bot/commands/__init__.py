@@ -13,6 +13,8 @@ from . import notebook
 from . import push
 from . import hidden_roll
 from . import admin
+from . import schedule
+from . import gamelog
 
 __all__ = [
     "CommandRegistry",

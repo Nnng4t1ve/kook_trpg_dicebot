@@ -1288,3 +1288,401 @@ class CardBuilder:
         }
         
         return json.dumps([card])
+
+    @staticmethod
+    def build_schedule_vote_card(
+        vote_id: str,
+        schedule_time,
+        mentioned_users: list[str],
+        description: str = "",
+        initiator_name: str = ""
+    ) -> str:
+        """构建预定时间投票卡片"""
+        from datetime import datetime
+        
+        # 格式化时间显示
+        time_display = schedule_time.strftime("%Y年%m月%d日 %H:%M")
+        
+        # 构建提及用户列表（使用KOOK的@格式）
+        users_display = "、".join([f"(met){user}(met)" for user in mentioned_users])
+        
+        # 构建描述内容
+        content_lines = [
+            f"📅 **预定时间**: {time_display}",
+            f"👥 **参与者**: {users_display}",
+        ]
+        
+        if description:
+            content_lines.append(f"📝 **说明**: {description}")
+        
+        content_lines.extend([
+            "",
+            "请点击下方按钮表示你的选择：",
+            "✅ **同意** - 可以参加",
+            "❌ **拒绝** - 无法参加"
+        ])
+        
+        card = {
+            "type": "card",
+            "theme": "info",
+            "size": "lg",
+            "modules": [
+                {
+                    "type": "header",
+                    "text": {
+                        "type": "plain-text",
+                        "content": "📅 预定时间投票"
+                    }
+                },
+                {
+                    "type": "divider"
+                },
+                {
+                    "type": "section",
+                    "text": {
+                        "type": "kmarkdown",
+                        "content": "\n".join(content_lines)
+                    }
+                },
+                {
+                    "type": "context",
+                    "elements": [
+                        {
+                            "type": "kmarkdown",
+                            "content": f"发起者: **{initiator_name}** | 只有被提及的用户可以投票，每人只能投一次"
+                        }
+                    ]
+                },
+                {
+                    "type": "action-group",
+                    "elements": [
+                        {
+                            "type": "button",
+                            "theme": "success",
+                            "value": json.dumps({
+                                "action": "schedule_vote",
+                                "vote_id": vote_id,
+                                "choice": "agree"
+                            }),
+                            "click": "return-val",
+                            "text": {
+                                "type": "plain-text",
+                                "content": "✅ 同意"
+                            }
+                        },
+                        {
+                            "type": "button",
+                            "theme": "danger",
+                            "value": json.dumps({
+                                "action": "schedule_vote",
+                                "vote_id": vote_id,
+                                "choice": "reject"
+                            }),
+                            "click": "return-val",
+                            "text": {
+                                "type": "plain-text",
+                                "content": "❌ 拒绝"
+                            }
+                        }
+                    ]
+                }
+            ]
+        }
+        
+        return json.dumps([card])
+
+    @staticmethod
+    def build_schedule_vote_result_card(
+        vote_id: str,
+        schedule_time,
+        description: str,
+        initiator_name: str,
+        votes: dict,
+        mentioned_users: list[str]
+    ) -> str:
+        """构建预定时间投票结果卡片"""
+        from datetime import datetime
+        
+        # 格式化时间显示
+        time_display = schedule_time.strftime("%Y年%m月%d日 %H:%M")
+        
+        # 统计投票结果
+        agree_users = []
+        reject_users = []
+        no_vote_users = []
+        
+        for user in mentioned_users:
+            if user in votes:
+                if votes[user]["choice"] == "agree":
+                    agree_users.append(user)
+                else:
+                    reject_users.append(user)
+            else:
+                no_vote_users.append(user)
+        
+        # 构建结果显示
+        content_lines = [
+            f"📅 **预定时间**: {time_display}",
+        ]
+        
+        if description:
+            content_lines.append(f"📝 **说明**: {description}")
+        
+        content_lines.append("")
+        content_lines.append("📊 **投票结果**:")
+        
+        if agree_users:
+            content_lines.append(f"✅ **同意** ({len(agree_users)}人): {', '.join([f'(met){u}(met)' for u in agree_users])}")
+        else:
+            content_lines.append("✅ **同意** (0人): 暂无")
+        
+        if reject_users:
+            content_lines.append(f"❌ **拒绝** ({len(reject_users)}人): {', '.join([f'(met){u}(met)' for u in reject_users])}")
+        else:
+            content_lines.append("❌ **拒绝** (0人): 暂无")
+        
+        if no_vote_users:
+            content_lines.append(f"⏳ **未投票** ({len(no_vote_users)}人): {', '.join([f'(met){u}(met)' for u in no_vote_users])}")
+        
+        # 确定主题颜色
+        if len(agree_users) == len(mentioned_users):
+            theme = "success"
+            status = "🎉 所有人都同意！"
+        elif len(reject_users) == len(mentioned_users):
+            theme = "danger"
+            status = "😔 所有人都拒绝了"
+        elif len(no_vote_users) == 0:
+            theme = "warning"
+            status = "📊 投票已完成"
+        else:
+            theme = "info"
+            status = "⏳ 投票进行中..."
+        
+        content_lines.extend(["", status])
+        
+        card = {
+            "type": "card",
+            "theme": theme,
+            "size": "lg",
+            "modules": [
+                {
+                    "type": "header",
+                    "text": {
+                        "type": "plain-text",
+                        "content": "📅 预定时间投票结果"
+                    }
+                },
+                {
+                    "type": "divider"
+                },
+                {
+                    "type": "section",
+                    "text": {
+                        "type": "kmarkdown",
+                        "content": "\n".join(content_lines)
+                    }
+                },
+                {
+                    "type": "context",
+                    "elements": [
+                        {
+                            "type": "kmarkdown",
+                            "content": f"发起者: **{initiator_name}**"
+                        }
+                    ]
+                }
+            ]
+        }
+        
+        return json.dumps([card])
+
+
+    @staticmethod
+    def build_game_log_list_card(
+        logs: list[dict],
+        total: int,
+        page: int,
+        channel_id: str,
+    ) -> str:
+        """构建游戏日志列表卡片"""
+        page_size = 10
+        total_pages = (total + page_size - 1) // page_size
+
+        # 构建日志列表
+        lines = []
+        for log in logs:
+            status = "🔴 进行中" if not log.get("ended_at") else "✅ 已结束"
+            started = log["started_at"].strftime("%m-%d %H:%M") if log.get("started_at") else "未知"
+            lines.append(
+                f"{status} `{log['log_name']}`\n"
+                f"   📅 {started} | 📝 {log.get('entry_count', 0)}条"
+            )
+
+        content = "\n".join(lines) if lines else "暂无日志记录"
+
+        modules = [
+            {
+                "type": "header",
+                "text": {"type": "plain-text", "content": "📋 游戏日志列表"}
+            },
+            {"type": "divider"},
+            {
+                "type": "section",
+                "text": {"type": "kmarkdown", "content": content}
+            },
+            {
+                "type": "context",
+                "elements": [
+                    {
+                        "type": "kmarkdown",
+                        "content": f"第 {page}/{total_pages} 页 · 共 {total} 条记录"
+                    }
+                ]
+            },
+        ]
+
+        # 添加翻页按钮
+        if total_pages > 1:
+            buttons = []
+            # 首页
+            if page > 1:
+                buttons.append({
+                    "type": "button",
+                    "theme": "secondary",
+                    "value": json.dumps({"action": "log_page", "page": 1, "channel_id": channel_id}),
+                    "click": "return-val",
+                    "text": {"type": "plain-text", "content": "⏮️ 首页"}
+                })
+            # 上一页
+            if page > 1:
+                buttons.append({
+                    "type": "button",
+                    "theme": "secondary",
+                    "value": json.dumps({"action": "log_page", "page": page - 1, "channel_id": channel_id}),
+                    "click": "return-val",
+                    "text": {"type": "plain-text", "content": "⬅️ 上一页"}
+                })
+            # 下一页
+            if page < total_pages:
+                buttons.append({
+                    "type": "button",
+                    "theme": "secondary",
+                    "value": json.dumps({"action": "log_page", "page": page + 1, "channel_id": channel_id}),
+                    "click": "return-val",
+                    "text": {"type": "plain-text", "content": "下一页 ➡️"}
+                })
+            # 尾页
+            if page < total_pages:
+                buttons.append({
+                    "type": "button",
+                    "theme": "secondary",
+                    "value": json.dumps({"action": "log_page", "page": total_pages, "channel_id": channel_id}),
+                    "click": "return-val",
+                    "text": {"type": "plain-text", "content": "尾页 ⏭️"}
+                })
+
+            if buttons:
+                modules.append({"type": "action-group", "elements": buttons})
+
+        card = {"type": "card", "theme": "info", "size": "lg", "modules": modules}
+        return json.dumps([card])
+
+    @staticmethod
+    def build_game_log_export_card(
+        log_name: str,
+        export_url: str,
+        total_entries: int,
+    ) -> str:
+        """构建日志导出卡片"""
+        card = {
+            "type": "card",
+            "theme": "success",
+            "size": "lg",
+            "modules": [
+                {
+                    "type": "header",
+                    "text": {"type": "plain-text", "content": "📤 日志导出"}
+                },
+                {"type": "divider"},
+                {
+                    "type": "section",
+                    "text": {
+                        "type": "kmarkdown",
+                        "content": f"日志名称: `{log_name}`\n共 **{total_entries}** 条记录"
+                    }
+                },
+                {
+                    "type": "action-group",
+                    "elements": [
+                        {
+                            "type": "button",
+                            "theme": "primary",
+                            "click": "link",
+                            "value": export_url,
+                            "text": {"type": "plain-text", "content": "📥 下载JSON文件"}
+                        }
+                    ]
+                }
+            ]
+        }
+        return json.dumps([card])
+
+    @staticmethod
+    def build_game_log_analysis_card(
+        log_name: str,
+        stats: dict,
+    ) -> str:
+        """构建日志分析卡片"""
+        user_stats = stats.get("user_stats", {})
+        total_rolls = stats.get("total_rolls", 0)
+
+        # 构建用户统计表格
+        lines = [f"📊 **总骰点次数**: {total_rolls}", ""]
+
+        if user_stats:
+            lines.append("**各玩家统计**:")
+            for user_id, s in user_stats.items():
+                lines.append(
+                    f"(met){user_id}(met): "
+                    f"🎲{s['total_rolls']} "
+                    f"✅{s['success']} "
+                    f"❌{s['failure']} "
+                    f"🌟{s['critical']} "
+                    f"💀{s['fumble']}"
+                )
+
+        # 添加最多统计
+        lines.append("")
+        lines.append("**🏆 排行榜**:")
+
+        most_success = stats.get("most_success")
+        most_failure = stats.get("most_failure")
+        most_critical = stats.get("most_critical")
+        most_fumble = stats.get("most_fumble")
+
+        if most_critical and most_critical["critical"] > 0:
+            lines.append(f"🌟 大成功最多: **{most_critical['user_name']}** ({most_critical['critical']}次)")
+        if most_fumble and most_fumble["fumble"] > 0:
+            lines.append(f"💀 大失败最多: **{most_fumble['user_name']}** ({most_fumble['fumble']}次)")
+        if most_success and most_success["success"] > 0:
+            lines.append(f"✅ 成功最多: **{most_success['user_name']}** ({most_success['success']}次)")
+        if most_failure and most_failure["failure"] > 0:
+            lines.append(f"❌ 失败最多: **{most_failure['user_name']}** ({most_failure['failure']}次)")
+
+        card = {
+            "type": "card",
+            "theme": "info",
+            "size": "lg",
+            "modules": [
+                {
+                    "type": "header",
+                    "text": {"type": "plain-text", "content": f"📈 日志分析: {log_name}"}
+                },
+                {"type": "divider"},
+                {
+                    "type": "section",
+                    "text": {"type": "kmarkdown", "content": "\n".join(lines)}
+                }
+            ]
+        }
+        return json.dumps([card])

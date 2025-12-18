@@ -111,12 +111,16 @@ class MessageHandler:
         author_id = event.get("author_id")
         msg_id = event.get("msg_id")
         
-        # 忽略机器人自己的消息
+        # 忽略机器人自己的消息（Bot响应会在发送后单独记录）
         author = extra.get("author", {})
-        if author.get("bot"):
+        is_bot = author.get("bot", False)
+        if is_bot:
             return
         
         author_name = author.get("nickname") or author.get("username", "")
+        
+        # 记录用户消息到日志（如果在记录范围内）
+        await self._maybe_log_message(target_id, author_id, author_name, content, is_bot=False)
         
         # 检查是否有等待推送的状态
         from .commands.push import is_pending_push, clear_pending_push, build_push_card
@@ -176,6 +180,10 @@ class MessageHandler:
             if channel_type == "GROUP":
                 await self.client.send_message(
                     target_id, result.content, msg_type=msg_type, quote=quote
+                )
+                # 记录Bot响应到日志
+                await self._maybe_log_message(
+                    target_id, "bot", "Bot", result.content, is_bot=True
                 )
             else:
                 await self.client.send_direct_message(author_id, result.content, msg_type=msg_type)
@@ -255,6 +263,10 @@ class MessageHandler:
             await self._handle_confirm_create_character_button(value, user_id, target_id, user_name)
         elif action == "notebook_page":
             await self._handle_notebook_page_button(value, user_id, target_id)
+        elif action == "schedule_vote":
+            await self._handle_schedule_vote_button(value, user_id, target_id, user_name)
+        elif action == "log_page":
+            await self._handle_log_page_button(value, user_id, target_id)
 
     async def _handle_san_check_button(
         self, value: dict, user_id: str, target_id: str, user_name: str
@@ -891,3 +903,117 @@ class MessageHandler:
             pass
         
         return image_url, text_content
+
+    async def _handle_schedule_vote_button(
+        self, value: dict, user_id: str, channel_id: str, user_name: str
+    ):
+        """处理预定时间投票按钮点击"""
+        vote_id = value.get("vote_id")
+        choice = value.get("choice")  # "agree" or "reject"
+        
+        if not vote_id or not choice:
+            await self.client.send_message(channel_id, f"(met){user_id}(met) 参数错误", msg_type=9)
+            return
+        
+        # 获取投票信息
+        vote_info = await self.db.get_schedule_vote(vote_id)
+        if not vote_info:
+            await self.client.send_message(channel_id, f"(met){user_id}(met) 该投票已过期或不存在", msg_type=9)
+            return
+        
+        # 检查用户是否有投票权限（必须在被提及的用户ID列表中）
+        mentioned_users = vote_info.get("mentioned_users", [])
+        if user_id not in mentioned_users:
+            await self.client.send_message(channel_id, f"(met){user_id}(met) 你没有参与此次投票的权限", msg_type=9)
+            return
+        
+        # 检查用户是否已经投过票（使用用户ID作为key）
+        existing_votes = await self.db.get_schedule_votes(vote_id)
+        if user_id in existing_votes:
+            current_choice = existing_votes[user_id]["choice"]
+            choice_text = "同意" if current_choice == "agree" else "拒绝"
+            await self.client.send_message(channel_id, f"(met){user_id}(met) 你已经投过票了（选择：{choice_text}），每人只能投一次", msg_type=9)
+            return
+        
+        # 记录投票（使用用户ID作为key）
+        await self.db.record_schedule_vote(vote_id, user_id, choice, user_id)
+        
+        # 发送投票确认消息
+        choice_text = "同意" if choice == "agree" else "拒绝"
+        emoji = "✅" if choice == "agree" else "❌"
+        await self.client.send_message(
+            channel_id, 
+            f"{emoji} (met){user_id}(met) 选择了 **{choice_text}**", 
+            msg_type=9
+        )
+        
+        # 获取更新后的投票结果
+        updated_votes = await self.db.get_schedule_votes(vote_id)
+        
+        # 构建并发送更新后的投票结果卡片
+        result_card = CardBuilder.build_schedule_vote_result_card(
+            vote_id=vote_id,
+            schedule_time=vote_info["schedule_time"],
+            description=vote_info.get("description", ""),
+            initiator_name=vote_info["initiator_name"],
+            votes=updated_votes,
+            mentioned_users=mentioned_users
+        )
+        
+        await self.client.send_message(channel_id, result_card, msg_type=10)
+        
+        logger.info(f"SCHEDULE_VOTE | user={user_id}({user_name}) | vote_id={vote_id} | choice={choice}")
+
+
+    async def _maybe_log_message(
+        self,
+        channel_id: str,
+        user_id: str,
+        user_name: str,
+        content: str,
+        is_bot: bool = False,
+        roll_result: dict = None,
+    ):
+        """如果频道有活跃日志且用户在记录范围内，则记录消息"""
+        from .commands.gamelog import get_active_log, is_user_in_log
+
+        log_info = get_active_log(channel_id)
+        if not log_info or log_info.get("paused"):
+            return
+
+        # Bot消息总是记录，用户消息需要检查是否在参与者列表中
+        if not is_bot and not is_user_in_log(channel_id, user_id):
+            return
+
+        # 记录到数据库
+        await self.db.add_game_log_entry(
+            log_name=log_info["log_name"],
+            user_id=user_id,
+            user_name=user_name,
+            content=content,
+            msg_type="text",
+            is_bot=is_bot,
+            roll_result=roll_result,
+        )
+
+    async def _handle_log_page_button(
+        self, value: dict, user_id: str, channel_id: str
+    ):
+        """处理日志列表翻页按钮"""
+        page = value.get("page", 1)
+        target_channel = value.get("channel_id", channel_id)
+
+        logs, total = await self.db.list_game_logs(target_channel, page=page, page_size=10)
+
+        if total == 0:
+            await self.client.send_message(channel_id, "📝 当前频道暂无日志记录", msg_type=9)
+            return
+
+        card = CardBuilder.build_game_log_list_card(
+            logs=logs,
+            total=total,
+            page=page,
+            channel_id=target_channel,
+        )
+
+        await self.client.send_message(channel_id, card, msg_type=10)
