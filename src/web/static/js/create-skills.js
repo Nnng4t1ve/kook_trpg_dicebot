@@ -107,6 +107,40 @@ const SkillManager = {
             input.addEventListener('input', () => {
                 this.updateRowTotal(input.closest('.skill-row'));
                 PointsManager.calculateUsedPoints();
+                // 更新审核按钮状态（检查技能上限）
+                if (typeof ReviewManager !== 'undefined') {
+                    ReviewManager.updateReviewButton();
+                }
+            });
+        });
+        
+        // 绑定双击设置本职技能
+        document.querySelectorAll('.skill-row').forEach(row => {
+            row.addEventListener('dblclick', function(e) {
+                // 忽略输入框的双击
+                if (e.target.tagName === 'INPUT') return;
+                
+                var nameCell = row.querySelector('.skill-name');
+                if (!nameCell) return;
+                
+                if (row.classList.contains('occupation-skill')) {
+                    row.classList.remove('occupation-skill');
+                    var marker = nameCell.querySelector('.occ-marker');
+                    if (marker) marker.remove();
+                } else {
+                    row.classList.add('occupation-skill');
+                    if (!nameCell.querySelector('.occ-marker')) {
+                        var marker = document.createElement('span');
+                        marker.className = 'occ-marker';
+                        marker.textContent = '★';
+                        nameCell.insertBefore(marker, nameCell.firstChild);
+                    }
+                }
+                
+                // 更新审核按钮状态（本职/非本职上限可能不同）
+                if (typeof ReviewManager !== 'undefined') {
+                    ReviewManager.updateReviewButton();
+                }
             });
         });
     },

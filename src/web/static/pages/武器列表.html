@@ -1,0 +1,739 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>武器列表</title>
+    <style>
+:root {
+    --primary: #4fc3f7;
+    --primary-dark: #2196f3;
+    --secondary: #81d4fa;
+    --bg-gradient-start: #1a1a2e;
+    --bg-gradient-end: #16213e;
+    --bg-card: rgba(255, 255, 255, 0.1);
+    --bg-dark: rgba(0, 0, 0, 0.3);
+    --text-primary: #fff;
+    --text-secondary: #ccc;
+    --text-muted: #aaa;
+    --border-light: rgba(255, 255, 255, 0.2);
+    --radius-lg: 8px;
+    --radius-xl: 12px;
+}
+
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    background: linear-gradient(135deg, var(--bg-gradient-start) 0%, var(--bg-gradient-end) 100%);
+    min-height: 100vh;
+    padding: 20px;
+    color: var(--text-primary);
+}
+
+.container {
+    max-width: var(--container-width, 1200px);
+    margin: 0 auto;
+}
+
+h1 {
+    text-align: center;
+    margin-bottom: 20px;
+    font-size: 1.8rem;
+    color: var(--primary);
+}
+
+.card {
+    background: var(--bg-card);
+    border-radius: var(--radius-xl);
+    padding: 20px;
+    margin-bottom: 20px;
+    backdrop-filter: blur(10px);
+}
+
+table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: var(--table-font-size, 0.95rem);
+}
+
+th {
+    padding: 12px 8px;
+    text-align: center;
+    font-weight: 600;
+    color: var(--text-primary);
+    border: 1px solid var(--border-light);
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+}
+
+td {
+    padding: 10px 8px;
+    text-align: center;
+    border: 1px solid var(--border-light);
+    color: var(--text-secondary);
+}
+
+tbody tr {
+    background: var(--bg-dark);
+    transition: background 0.2s ease;
+}
+
+tbody tr:nth-child(even) {
+    background: rgba(0, 0, 0, 0.2);
+}
+
+tbody tr:hover {
+    background: rgba(79, 195, 247, 0.15);
+}
+
+/* 第一列（序号）样式 */
+td:first-child {
+    color: var(--primary);
+    font-weight: 600;
+    width: 60px;
+}
+
+/* 第二列（名称）样式 */
+td:nth-child(2) {
+    color: var(--text-primary);
+    font-weight: 500;
+    text-align: left;
+    padding-left: 12px;
+}
+
+/* 最后一列（技能/描述）样式 */
+td:last-child {
+    text-align: left;
+    padding-left: 12px;
+    font-size: var(--desc-font-size, 0.9rem);
+    color: var(--text-muted);
+}
+
+/* 搜索框样式 */
+.search-box {
+    margin-bottom: 15px;
+}
+
+.search-box input {
+    width: 100%;
+    padding: 12px 16px;
+    border: none;
+    border-radius: var(--radius-lg);
+    background: var(--bg-dark);
+    color: var(--text-primary);
+    font-size: var(--search-font-size, 1rem);
+}
+
+.search-box input:focus {
+    outline: 2px solid var(--primary);
+}
+
+.search-box input::placeholder {
+    color: var(--text-muted);
+}
+
+/* 统计信息 */
+.stats {
+    text-align: center;
+    margin-bottom: 15px;
+    color: var(--text-muted);
+    font-size: var(--stats-font-size, 0.85rem);
+}
+
+.stats span {
+    color: var(--primary);
+    font-weight: 600;
+}
+</style>
+    <style>
+        :root { 
+            --container-width: 900px; 
+            --table-font-size: 1rem; 
+            --desc-font-size: 0.95rem;
+            --search-font-size: 1.1rem;
+            --stats-font-size: 0.95rem;
+        }
+        h1 { font-size: 2rem; margin-bottom: 25px; }
+        th { padding: 14px 10px; font-size: 1.05rem; }
+        td { padding: 12px 10px; }
+        th:first-child, td:first-child { width: 40%; text-align: left; padding-left: 15px; }
+        th:nth-child(2), td:nth-child(2) { width: 30%; text-align: center; }
+        th:last-child, td:last-child { width: 30%; text-align: center; }
+        .card { padding: 25px; }
+        .search-box input { padding: 14px 18px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>⚔️ 武器列表</h1>
+        <div class="card">
+            <div class="search-box">
+                <input type="text" id="searchInput" placeholder="🔍 搜索...">
+            </div>
+            <div class="stats">共 <span id="totalCount">105</span> 条记录，显示 <span id="visibleCount">105</span> 条</div>
+            <table class="dataframe data-table">
+  <thead>
+    <tr style="text-align: center;">
+      <th>武器类型</th>
+      <th>技能</th>
+      <th>伤害</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>弓箭</td>
+      <td>弓术</td>
+      <td>1D6+半DB</td>
+    </tr>
+    <tr>
+      <td>黄铜指虎</td>
+      <td>斗殴</td>
+      <td>1D3+1+DB</td>
+    </tr>
+    <tr>
+      <td>长鞭</td>
+      <td>鞭子</td>
+      <td>1D3+半DB</td>
+    </tr>
+    <tr>
+      <td>燃烧的火把</td>
+      <td>斗殴</td>
+      <td>1D6+燃烧</td>
+    </tr>
+    <tr>
+      <td>电锯</td>
+      <td>电锯</td>
+      <td>2D8</td>
+    </tr>
+    <tr>
+      <td>包皮金属棍(甩棍、大头棍、护身棒)</td>
+      <td>斗殴</td>
+      <td>1D8+DB</td>
+    </tr>
+    <tr>
+      <td>大型棍状物(棒球棍、板球棒、拨火棍等)</td>
+      <td>斗殴</td>
+      <td>1D8+DB</td>
+    </tr>
+    <tr>
+      <td>小型棍状物(警棍等)</td>
+      <td>斗殴</td>
+      <td>1D6+DB</td>
+    </tr>
+    <tr>
+      <td>弩</td>
+      <td>弓术</td>
+      <td>1D8+2</td>
+    </tr>
+    <tr>
+      <td>绞具</td>
+      <td>绞具</td>
+      <td>1D6+DB</td>
+    </tr>
+    <tr>
+      <td>手斧/镰刀</td>
+      <td>斧</td>
+      <td>1D6+1+DB</td>
+    </tr>
+    <tr>
+      <td>大型刀具(甘蔗刀等)</td>
+      <td>斗殴</td>
+      <td>1D8+DB</td>
+    </tr>
+    <tr>
+      <td>中型刀具(切肉菜刀等)</td>
+      <td>斗殴</td>
+      <td>1D4+2+DB</td>
+    </tr>
+    <tr>
+      <td>小型刀具(弹簧折叠刀等)</td>
+      <td>斗殴</td>
+      <td>1D4+DB</td>
+    </tr>
+    <tr>
+      <td>220v通电导线</td>
+      <td>斗殴</td>
+      <td>2D8+眩晕</td>
+    </tr>
+    <tr>
+      <td>催泪瓦斯</td>
+      <td>斗殴</td>
+      <td>眩晕</td>
+    </tr>
+    <tr>
+      <td>双节棍</td>
+      <td>链枷</td>
+      <td>1D8+DB</td>
+    </tr>
+    <tr>
+      <td>投石</td>
+      <td>投掷</td>
+      <td>1D4+半DB</td>
+    </tr>
+    <tr>
+      <td>手里剑</td>
+      <td>投掷</td>
+      <td>1D3+半DB</td>
+    </tr>
+    <tr>
+      <td>矛、骑士长枪</td>
+      <td>矛</td>
+      <td>1D8+1</td>
+    </tr>
+    <tr>
+      <td>投矛</td>
+      <td>投掷</td>
+      <td>1D8+半DB</td>
+    </tr>
+    <tr>
+      <td>大型剑（马刀）</td>
+      <td>剑</td>
+      <td>1D8+1+DB</td>
+    </tr>
+    <tr>
+      <td>中型剑（佩剑、重剑）</td>
+      <td>剑</td>
+      <td>1D6+1+DB</td>
+    </tr>
+    <tr>
+      <td>轻型剑（花剑、剑杖）</td>
+      <td>剑</td>
+      <td>1D6+DB</td>
+    </tr>
+    <tr>
+      <td>电棍、电击枪(接触)</td>
+      <td>斗殴</td>
+      <td>1D3+眩晕</td>
+    </tr>
+    <tr>
+      <td>电击枪(远程)</td>
+      <td>手枪</td>
+      <td>1D3+眩晕</td>
+    </tr>
+    <tr>
+      <td>战斗回力镖</td>
+      <td>投掷</td>
+      <td>1D8+半DB</td>
+    </tr>
+    <tr>
+      <td>伐木斧</td>
+      <td>斧</td>
+      <td>1D8+2+DB</td>
+    </tr>
+    <tr>
+      <td>遂发枪</td>
+      <td>手枪</td>
+      <td>1D6+1</td>
+    </tr>
+    <tr>
+      <td>.22(5.6mm)小型自动手枪</td>
+      <td>手枪</td>
+      <td>1D6</td>
+    </tr>
+    <tr>
+      <td>.25(6.35mm)短口手枪(单管)</td>
+      <td>手枪</td>
+      <td>1D6</td>
+    </tr>
+    <tr>
+      <td>.32(7.65mm)左轮手枪</td>
+      <td>手枪</td>
+      <td>1D8</td>
+    </tr>
+    <tr>
+      <td>.32(7.65mm)自动手枪</td>
+      <td>手枪</td>
+      <td>1D8</td>
+    </tr>
+    <tr>
+      <td>.357 马格南左轮</td>
+      <td>手枪</td>
+      <td>1D8+1D4</td>
+    </tr>
+    <tr>
+      <td>.38(9mm)左轮手枪</td>
+      <td>手枪</td>
+      <td>1D10</td>
+    </tr>
+    <tr>
+      <td>.38(9mm)自动手枪</td>
+      <td>手枪</td>
+      <td>1D10</td>
+    </tr>
+    <tr>
+      <td>贝瑞塔 M9</td>
+      <td>手枪</td>
+      <td>1D10</td>
+    </tr>
+    <tr>
+      <td>9mm 格洛克 17</td>
+      <td>手枪</td>
+      <td>1D10</td>
+    </tr>
+    <tr>
+      <td>9mm 鲁格 P08</td>
+      <td>手枪</td>
+      <td>1D10</td>
+    </tr>
+    <tr>
+      <td>.41(10.4mm) 左轮手枪</td>
+      <td>手枪</td>
+      <td>1D10</td>
+    </tr>
+    <tr>
+      <td>.44(11.2mm) 马格南左轮手枪</td>
+      <td>手枪</td>
+      <td>1D10+1D4+2</td>
+    </tr>
+    <tr>
+      <td>.45(11.43mm) 左轮手枪</td>
+      <td>手枪</td>
+      <td>1D10+2</td>
+    </tr>
+    <tr>
+      <td>.45(11.43mm) 自动手枪</td>
+      <td>手枪</td>
+      <td>1D10+2</td>
+    </tr>
+    <tr>
+      <td>IMI 沙漠之鹰</td>
+      <td>手枪</td>
+      <td>1D10+1D6+3</td>
+    </tr>
+    <tr>
+      <td>.58 (14.7mm)1855 年式春田步枪</td>
+      <td>步枪/霰弹枪</td>
+      <td>1D10+4</td>
+    </tr>
+    <tr>
+      <td>.22 (5.6mm)栓式枪机步枪</td>
+      <td>步枪/霰弹枪</td>
+      <td>1D6+1</td>
+    </tr>
+    <tr>
+      <td>.30 (7.62mm)杠杆式枪机步枪</td>
+      <td>步枪/霰弹枪</td>
+      <td>2D6</td>
+    </tr>
+    <tr>
+      <td>.45 马提尼·亨利步枪</td>
+      <td>步枪/霰弹枪</td>
+      <td>1D8+1D6+3</td>
+    </tr>
+    <tr>
+      <td>莫兰上校的气动步枪</td>
+      <td>步枪/霰弹枪</td>
+      <td>2D6+1</td>
+    </tr>
+    <tr>
+      <td>加兰德M1、M2步枪</td>
+      <td>步枪/霰弹枪</td>
+      <td>2D6+4</td>
+    </tr>
+    <tr>
+      <td>SKS 半自动步枪(56 半)</td>
+      <td>步枪/霰弹枪</td>
+      <td>2D6+1</td>
+    </tr>
+    <tr>
+      <td>.303 (7.7mm) 李·恩菲尔德</td>
+      <td>步枪/霰弹枪</td>
+      <td>2D6+4</td>
+    </tr>
+    <tr>
+      <td>.30——06 (7.62mm) 栓式枪机步枪</td>
+      <td>步枪/霰弹枪</td>
+      <td>2D6+4</td>
+    </tr>
+    <tr>
+      <td>.30——06 (7.62mm) 半自动步枪</td>
+      <td>步枪/霰弹枪</td>
+      <td>2D6+4</td>
+    </tr>
+    <tr>
+      <td>.444 (11.28mm) 马林步枪</td>
+      <td>步枪/霰弹枪</td>
+      <td>2D8+4</td>
+    </tr>
+    <tr>
+      <td>猎象枪(双管)</td>
+      <td>步枪/霰弹枪</td>
+      <td>3D6+4</td>
+    </tr>
+    <tr>
+      <td>20 号霰弹枪(双管)</td>
+      <td>步枪/霰弹枪</td>
+      <td>2D6/1D6/1D3</td>
+    </tr>
+    <tr>
+      <td>16 号霰弹枪(双管)</td>
+      <td>步枪/霰弹枪</td>
+      <td>2D6+2/1D6+1/1D4</td>
+    </tr>
+    <tr>
+      <td>12 号霰弹枪(双管)</td>
+      <td>步枪/霰弹枪</td>
+      <td>4D6/2D6/1D6</td>
+    </tr>
+    <tr>
+      <td>12 号霰弹枪(泵动)</td>
+      <td>步枪/霰弹枪</td>
+      <td>4D6/2D6/1D6</td>
+    </tr>
+    <tr>
+      <td>12 号霰弹枪(半自动)</td>
+      <td>步枪/霰弹枪</td>
+      <td>4D6/2D6/1D6</td>
+    </tr>
+    <tr>
+      <td>12 号霰弹枪(双管,锯短)</td>
+      <td>步枪/霰弹枪</td>
+      <td>4D6/1D6</td>
+    </tr>
+    <tr>
+      <td>10 号霰弹枪(双管)</td>
+      <td>步枪/霰弹枪</td>
+      <td>4D6+2/2D6+1/1D4</td>
+    </tr>
+    <tr>
+      <td>12 号贝里尼 M3(折叠式枪托)</td>
+      <td>步枪/霰弹枪</td>
+      <td>4D6/2D6/1D6</td>
+    </tr>
+    <tr>
+      <td>12 号 SPAS (折叠式枪托)</td>
+      <td>步枪/霰弹枪</td>
+      <td>4D6/2D6/1D6</td>
+    </tr>
+    <tr>
+      <td>AK-47 或 AKM</td>
+      <td>步枪/霰弹枪</td>
+      <td>2D6+1</td>
+    </tr>
+    <tr>
+      <td>AK-74</td>
+      <td>步枪/霰弹枪</td>
+      <td>2D6+1</td>
+    </tr>
+    <tr>
+      <td>巴雷特M82</td>
+      <td>步枪/霰弹枪</td>
+      <td>2D10+1D8+6</td>
+    </tr>
+    <tr>
+      <td>FN FAL</td>
+      <td>步枪/霰弹枪</td>
+      <td>2D6+4</td>
+    </tr>
+    <tr>
+      <td>加利尔突击步枪</td>
+      <td>步枪/霰弹枪</td>
+      <td>2D6</td>
+    </tr>
+    <tr>
+      <td>M16A2</td>
+      <td>步枪/霰弹枪</td>
+      <td>2D6</td>
+    </tr>
+    <tr>
+      <td>M4</td>
+      <td>步枪/霰弹枪</td>
+      <td>2D6</td>
+    </tr>
+    <tr>
+      <td>斯泰尔 AUG</td>
+      <td>步枪/霰弹枪</td>
+      <td>2D6</td>
+    </tr>
+    <tr>
+      <td>贝雷塔 M70/90</td>
+      <td>步枪/霰弹枪</td>
+      <td>2D6</td>
+    </tr>
+    <tr>
+      <td>MP18I/MP28II</td>
+      <td>冲锋枪</td>
+      <td>1D10</td>
+    </tr>
+    <tr>
+      <td>MP5</td>
+      <td>冲锋枪</td>
+      <td>1D10</td>
+    </tr>
+    <tr>
+      <td>MAC-11</td>
+      <td>冲锋枪</td>
+      <td>1D10</td>
+    </tr>
+    <tr>
+      <td>蝎式冲锋枪</td>
+      <td>冲锋枪</td>
+      <td>1D8</td>
+    </tr>
+    <tr>
+      <td>汤普森冲锋枪</td>
+      <td>冲锋枪</td>
+      <td>1D10+2</td>
+    </tr>
+    <tr>
+      <td>乌兹微型冲锋枪</td>
+      <td>冲锋枪</td>
+      <td>1D10</td>
+    </tr>
+    <tr>
+      <td>1882 年式加特林</td>
+      <td>机枪</td>
+      <td>2D6+4</td>
+    </tr>
+    <tr>
+      <td>M1918 式勃朗宁自动步枪</td>
+      <td>机枪</td>
+      <td>2D6+4</td>
+    </tr>
+    <tr>
+      <td>勃朗宁 M1917A1(7.62mm)</td>
+      <td>机枪</td>
+      <td>2D6+4</td>
+    </tr>
+    <tr>
+      <td>布伦轻机枪</td>
+      <td>机枪</td>
+      <td>2D6+4</td>
+    </tr>
+    <tr>
+      <td>路易斯Ⅰ型机枪</td>
+      <td>机枪</td>
+      <td>2D6+4</td>
+    </tr>
+    <tr>
+      <td>GE M134 式 7.62mm 速射机枪</td>
+      <td>机枪</td>
+      <td>2D6+4</td>
+    </tr>
+    <tr>
+      <td>FN 米尼米(5.56mm)，弹夹/弹带</td>
+      <td>机枪</td>
+      <td>2D6</td>
+    </tr>
+    <tr>
+      <td>维克斯.303 机枪</td>
+      <td>机枪</td>
+      <td>2D6+4</td>
+    </tr>
+    <tr>
+      <td>莫洛托夫燃烧瓶</td>
+      <td>投掷</td>
+      <td>2D6+燃烧</td>
+    </tr>
+    <tr>
+      <td>信号枪(信号弹枪)</td>
+      <td>手枪</td>
+      <td>1D10+1D3+燃烧</td>
+    </tr>
+    <tr>
+      <td>M79 40mm 榴弹发射器</td>
+      <td>重武器</td>
+      <td>3D10/2码</td>
+    </tr>
+    <tr>
+      <td>炸药棒</td>
+      <td>投掷</td>
+      <td>4D10/3码</td>
+    </tr>
+    <tr>
+      <td>雷管</td>
+      <td>电气维修</td>
+      <td>2D10/1码</td>
+    </tr>
+    <tr>
+      <td>爆破筒</td>
+      <td>爆破</td>
+      <td>1D10/3码</td>
+    </tr>
+    <tr>
+      <td>塑胶炸弹(C4) 100克</td>
+      <td>爆破</td>
+      <td>6D10/3码</td>
+    </tr>
+    <tr>
+      <td>手榴弹</td>
+      <td>投掷</td>
+      <td>4D10/3码</td>
+    </tr>
+    <tr>
+      <td>81mm迫击炮</td>
+      <td>炮术</td>
+      <td>6D10/6码</td>
+    </tr>
+    <tr>
+      <td>75mm野战火炮</td>
+      <td>炮术</td>
+      <td>10D10/2码</td>
+    </tr>
+    <tr>
+      <td>120mm坦克炮(稳定)</td>
+      <td>炮术</td>
+      <td>10D10/2码</td>
+    </tr>
+    <tr>
+      <td>5英寸舰载炮(稳定)</td>
+      <td>炮术</td>
+      <td>15D10/4码</td>
+    </tr>
+    <tr>
+      <td>反步兵地雷</td>
+      <td>爆破</td>
+      <td>4D10/5码</td>
+    </tr>
+    <tr>
+      <td>阔剑地雷</td>
+      <td>爆破</td>
+      <td>6D6/20码</td>
+    </tr>
+    <tr>
+      <td>火焰喷射器</td>
+      <td>喷射器</td>
+      <td>2D6+燃烧</td>
+    </tr>
+    <tr>
+      <td>M72 式单发轻型反坦克炮</td>
+      <td>重武器</td>
+      <td>8d10/1码</td>
+    </tr>
+    <tr>
+      <td>-</td>
+      <td>-</td>
+      <td>-</td>
+    </tr>
+  </tbody>
+</table>
+        </div>
+    </div>
+    <script>
+        const searchInput = document.getElementById('searchInput');
+        const table = document.querySelector('table');
+        const rows = table.querySelectorAll('tbody tr');
+        const totalCount = document.getElementById('totalCount');
+        const visibleCount = document.getElementById('visibleCount');
+        
+        searchInput.addEventListener('input', function() {
+            const filter = this.value.toLowerCase();
+            let visible = 0;
+            rows.forEach(row => {
+                const text = row.textContent.toLowerCase();
+                const match = text.includes(filter);
+                row.style.display = match ? '' : 'none';
+                if (match) visible++;
+            });
+            visibleCount.textContent = visible;
+        });
+    </script>
+</body>
+</html>

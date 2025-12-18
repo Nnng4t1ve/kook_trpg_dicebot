@@ -50,6 +50,44 @@ const ReviewManager = {
         });
     },
 
+    // 检查技能是否超出上限
+    checkSkillLimits() {
+        // 检查全局变量是否定义且有值
+        const hasSkillLimit = typeof SKILL_LIMIT !== 'undefined' && SKILL_LIMIT !== null;
+        const hasOccLimit = typeof OCC_LIMIT !== 'undefined' && OCC_LIMIT !== null;
+        const hasNonOccLimit = typeof NON_OCC_LIMIT !== 'undefined' && NON_OCC_LIMIT !== null;
+        
+        // 如果没有任何上限设置，直接返回有效
+        if (!hasSkillLimit && !hasOccLimit && !hasNonOccLimit) {
+            return { valid: true, errors: [] };
+        }
+        
+        const errors = [];
+        document.querySelectorAll('.skill-row').forEach(row => {
+            const skillName = row.dataset.skill;
+            const total = parseInt(row.querySelector('.total').textContent) || 0;
+            const isOccupation = row.classList.contains('occupation-skill');
+            
+            // 跳过母语技能（基础值为EDU，可能超过上限）
+            if (skillName.startsWith('母语')) return;
+            
+            // 只检查有实际点数的技能（排除初始值）
+            if (total <= 0) return;
+            
+            if (hasSkillLimit && total > SKILL_LIMIT) {
+                errors.push(`${skillName}: ${total} > ${SKILL_LIMIT}`);
+            } else if (hasOccLimit && hasNonOccLimit) {
+                if (isOccupation && total > OCC_LIMIT) {
+                    errors.push(`${skillName}(本职): ${total} > ${OCC_LIMIT}`);
+                } else if (!isOccupation && total > NON_OCC_LIMIT) {
+                    errors.push(`${skillName}(非本职): ${total} > ${NON_OCC_LIMIT}`);
+                }
+            }
+        });
+        
+        return { valid: errors.length === 0, errors };
+    },
+
     // 提交审核
     async submitReview() {
         const data = FormManager.getFormData();
@@ -59,6 +97,13 @@ const ReviewManager = {
         }
         if (PointsManager.isOverspent()) {
             alert('点数超支，无法提交审核');
+            return;
+        }
+        
+        // 检查技能上限
+        const limitCheck = this.checkSkillLimits();
+        if (!limitCheck.valid) {
+            alert('技能超出上限，无法提交审核:\n' + limitCheck.errors.join('\n'));
             return;
         }
 
@@ -117,13 +162,23 @@ const ReviewManager = {
     // 更新审核按钮状态
     updateReviewButton() {
         const reviewBtn = document.getElementById('exportBtn');
+        
         if (PointsManager.isOverspent()) {
             reviewBtn.disabled = true;
             reviewBtn.textContent = '⚠️ 点数超支，无法审核';
-        } else {
-            reviewBtn.disabled = false;
-            reviewBtn.textContent = '📋 角色卡审核';
+            return;
         }
+        
+        // 检查技能上限
+        const limitCheck = this.checkSkillLimits();
+        if (!limitCheck.valid) {
+            reviewBtn.disabled = true;
+            reviewBtn.textContent = '⚠️ 技能超出上限，无法审核';
+            return;
+        }
+        
+        reviewBtn.disabled = false;
+        reviewBtn.textContent = '📋 角色卡审核';
     },
 
     // 检查审核状态

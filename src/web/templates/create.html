@@ -23,11 +23,56 @@
                 <h2>📝 基本信息</h2>
                 <label>角色名称 *</label>
                 <input type="text" name="name" id="charName" required placeholder="输入角色名称">
+                <div class="basic-info-row">
+                    <div class="basic-info-item">
+                        <label>年龄</label>
+                        <input type="text" name="age" id="charAge" placeholder="__">
+                    </div>
+                    <div class="basic-info-item">
+                        <label>性别</label>
+                        <input type="text" name="gender" id="charGender" placeholder="__">
+                    </div>
+                    <div class="basic-info-item">
+                        <label>国籍</label>
+                        <input type="text" name="nationality" id="charNationality" placeholder="__">
+                    </div>
+                </div>
+                <!-- 职业查询 -->
+                <div class="occupation-query-section">
+                    <label>职业序号 (输入序号查看职业信息，回车查询)</label>
+                    <div class="occupation-query-row">
+                        <input type="number" id="occupationId" placeholder="输入职业序号" min="0">
+                        <button type="button" class="btn-inline" id="queryOccupationBtn"
+                            onclick="OccupationManager.queryOccupation()">🔍</button>
+                    </div>
+                    <div id="occupationOutput" class="occupation-output">
+                        <p class="hint">输入职业序号后点击查询</p>
+                    </div>
+                </div>
+                <!-- 职业列表按钮 -->
+                <button type="button" class="btn btn-card-action"
+                    onclick="window.open('/static/pages/职业列表.html', '_blank')">📋 查看职业列表</button>
             </div>
 
             <!-- 属性值 -->
             <div class="card">
-                <h2>💪 属性值 <button type="button" class="btn-random" id="randomAllBtn">🎲 随机全部</button></h2>
+                <h2>💪 属性值
+                    <button type="button" class="btn-random" id="randomAllBtn">🎲 随机全部</button>
+                    <button type="button" class="btn-random btn-random-multi" id="randomMultiBtn">🎲 天命Roll 5</button>
+                </h2>
+
+                <!-- 批量随机预览面板 -->
+                <div id="randomPreviewPanel" class="random-preview-panel" style="display:none;">
+                    <div class="preview-header">
+                        <span>选择一组属性填入</span>
+                        <div class="preview-controls">
+                            <button type="button" class="preview-view-btn active" data-view="card">卡片</button>
+                            <button type="button" class="preview-view-btn" data-view="table">表格</button>
+                            <button type="button" class="preview-close-btn" id="closePreviewBtn">✕</button>
+                        </div>
+                    </div>
+                    <div id="previewContent" class="preview-content preview-card-view"></div>
+                </div>
                 <p class="hint" style="margin-bottom:8px;">勾选属性用于计算职业点数（最多2个）</p>
                 <div class="attr-grid">
                     <div class="attr-item">
@@ -127,10 +172,45 @@
 
             <!-- 技能 -->
             <div class="card">
-                <h2>🎯 技能 <span class="hint">(基础+职业+兴趣=成功率)</span></h2>
+                <h2>🎯 技能 <span class="hint">(基础+职业+兴趣=成功率，双击技能行设为本职)</span></h2>
+                <div id="skillLimitHint" class="skill-limit-hint" style="display:none;"></div>
                 <div id="skillsContainer">
                     <p class="hint">加载中...</p>
                 </div>
+            </div>
+
+            <!-- 武器栏 -->
+            <div class="card">
+                <h2>⚔️ 武器</h2>
+                <table class="weapon-table">
+                    <thead>
+                        <tr>
+                            <th>武器</th>
+                            <th>技能</th>
+                            <th>伤害</th>
+                        </tr>
+                    </thead>
+                    <tbody id="weaponBody">
+                        <tr>
+                            <td><input type="text" name="weapon_name_1" placeholder="武器名称"></td>
+                            <td><input type="text" name="weapon_skill_1" placeholder="技能"></td>
+                            <td><input type="text" name="weapon_damage_1" placeholder="伤害"></td>
+                        </tr>
+                        <tr>
+                            <td><input type="text" name="weapon_name_2" placeholder="武器名称"></td>
+                            <td><input type="text" name="weapon_skill_2" placeholder="技能"></td>
+                            <td><input type="text" name="weapon_damage_2" placeholder="伤害"></td>
+                        </tr>
+                        <tr>
+                            <td><input type="text" name="weapon_name_3" placeholder="武器名称"></td>
+                            <td><input type="text" name="weapon_skill_3" placeholder="技能"></td>
+                            <td><input type="text" name="weapon_damage_3" placeholder="伤害"></td>
+                        </tr>
+                    </tbody>
+                </table>
+                <!-- 武器列表按钮 -->
+                <button type="button" class="btn btn-card-action"
+                    onclick="window.open('/static/pages/武器列表.html', '_blank')">⚔️ 查看武器列表</button>
             </div>
 
             <!-- 物品栏 -->
@@ -237,6 +317,9 @@
     <script>
         const APP_TOKEN = '{{ token }}';
         const APP_USER_ID = '{{ user_id }}';
+        const SKILL_LIMIT = {{ skill_limit if skill_limit else 'null' }};
+        const OCC_LIMIT = {{ occ_limit if occ_limit else 'null' }};
+        const NON_OCC_LIMIT = {{ non_occ_limit if non_occ_limit else 'null' }};
     </script>
 
     <!-- JavaScript 模块 -->
@@ -247,7 +330,58 @@
     <script src="/static/js/create-attributes.js"></script>
     <script src="/static/js/create-form.js"></script>
     <script src="/static/js/create-review.js"></script>
+    <script src="/static/js/create-occupation.js"></script>
     <script src="/static/js/create-main.js"></script>
+
+    <!-- 职业查询和本职技能绑定 -->
+    <script>
+        (function () {
+            // 回车查询
+            document.addEventListener('keydown', function (e) {
+                if (e.target.id === 'occupationId' && e.key === 'Enter') {
+                    e.preventDefault();
+                    if (typeof OccupationManager !== 'undefined') {
+                        OccupationManager.queryOccupation();
+                    }
+                }
+            });
+
+            // 双击设置本职技能 - 使用document级别事件委托
+            document.addEventListener('dblclick', function (e) {
+                // 忽略输入框
+                if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') {
+                    return;
+                }
+
+                // 查找最近的skill-row
+                var row = e.target.closest('.skill-row');
+                if (row) {
+                    e.preventDefault();
+
+                    var skillName = row.dataset.skill;
+                    var nameCell = row.querySelector('.skill-name');
+
+                    if (!nameCell) return;
+
+                    if (row.classList.contains('occupation-skill')) {
+                        // 移除本职标记
+                        row.classList.remove('occupation-skill');
+                        var marker = nameCell.querySelector('.occ-marker');
+                        if (marker) marker.remove();
+                    } else {
+                        // 添加本职标记
+                        row.classList.add('occupation-skill');
+                        if (!nameCell.querySelector('.occ-marker')) {
+                            var marker = document.createElement('span');
+                            marker.className = 'occ-marker';
+                            marker.textContent = '★';
+                            nameCell.insertBefore(marker, nameCell.firstChild);
+                        }
+                    }
+                }
+            });
+        })();
+    </script>
 </body>
 
 </html>

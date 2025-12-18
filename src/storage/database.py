@@ -396,3 +396,23 @@ class Database:
                     "INSERT IGNORE INTO bot_settings (`key`, `value`) VALUES ('admin_id', %s)",
                     (user_id,)
                 )
+
+    async def get_bot_id(self) -> str | None:
+        """获取机器人自身 ID"""
+        async with self._pool.acquire() as conn:
+            async with conn.cursor() as cur:
+                await cur.execute(
+                    "SELECT `value` FROM bot_settings WHERE `key` = 'bot_id'"
+                )
+                row = await cur.fetchone()
+                return row[0] if row else None
+
+    async def set_bot_id(self, bot_id: str):
+        """设置机器人自身 ID"""
+        async with self._pool.acquire() as conn:
+            async with conn.cursor() as cur:
+                await cur.execute(
+                    "INSERT INTO bot_settings (`key`, `value`) VALUES ('bot_id', %s) AS new_val "
+                    "ON DUPLICATE KEY UPDATE `value` = new_val.`value`",
+                    (bot_id,)
+                )

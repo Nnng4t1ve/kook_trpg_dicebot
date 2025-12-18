@@ -23,15 +23,29 @@ async def create_page(request: Request, token: str):
     templates = request.app.state.templates
     
     logger.info(f"访问创建页面: token={token}")
-    user_id = token_service.validate(token, "create")
-    if not user_id:
+    
+    # 获取完整token数据
+    token_data = token_service.get_data(token)
+    if not token_data or token_data.token_type != "create":
         logger.warning(f"Token 无效或过期: {token}")
         raise HTTPException(status_code=404, detail="链接已过期或无效")
     
-    logger.info(f"Token 验证成功: user_id={user_id}")
+    user_id = token_data.user_id
+    skill_limit = token_data.extra_data.get("skill_limit")
+    occ_limit = token_data.extra_data.get("occ_limit")
+    non_occ_limit = token_data.extra_data.get("non_occ_limit")
+    
+    logger.info(f"Token 验证成功: user_id={user_id}, limits={skill_limit}/{occ_limit}/{non_occ_limit}")
     return templates.TemplateResponse(
         "create.html",
-        {"request": request, "token": token, "user_id": user_id}
+        {
+            "request": request, 
+            "token": token, 
+            "user_id": user_id,
+            "skill_limit": skill_limit,
+            "occ_limit": occ_limit,
+            "non_occ_limit": non_occ_limit
+        }
     )
 
 

@@ -58,9 +58,21 @@ class TokenService:
         logger.info(f"生成 {token_type} token: {token} -> user_id={user_id}")
         return token
     
-    def generate_create_token(self, user_id: str) -> str:
+    def generate_create_token(
+        self, 
+        user_id: str,
+        skill_limit: int = None,
+        occ_limit: int = None,
+        non_occ_limit: int = None
+    ) -> str:
         """生成角色创建 token"""
-        return self.generate(user_id, "create")
+        return self.generate(
+            user_id, 
+            "create",
+            skill_limit=skill_limit,
+            occ_limit=occ_limit,
+            non_occ_limit=non_occ_limit
+        )
     
     def generate_grow_token(self, user_id: str, char_name: str, skills: list) -> str:
         """生成角色成长 token"""

@@ -58,13 +58,16 @@ class HelpCommand(BaseCommand):
 
 **角色卡命令**
 `.pc create` - 获取在线创建链接
+`.pc create 75` - 带技能上限的创建链接
+`.pc create 75/49` - 本职/非本职技能上限
 `.pc new <JSON>` - 导入角色卡
-`.pc grow <角色> <技能...>` - 技能成长 (如 .pc grow 张三 侦查 聆听)
+`.pc grow <技能...>` - 技能成长 (如 .pc grow 侦查 聆听)
 `.pc list` - 列出角色卡
 `.pc switch <名称>` - 切换角色卡
 `.pc show` - 显示当前角色
 `.pc del <名称>` - 删除角色卡
 `.cc <角色名> @KP` - 发起角色卡审核
+`.cc <角色名> @机器人` - 自动审核通过
 
 **属性调整**
 `.hp` - 查看当前 HP
@@ -172,15 +175,18 @@ class CharacterReviewCommand(BaseCommand):
     usage = ".cc <角色名> @KP"
     
     async def execute(self, args: str) -> CommandResult:
-        """角色卡审核命令: .cc <角色名> @KP"""
+        """角色卡审核命令: .cc <角色名> @KP 或 .cc <角色名> @机器人 自动通过"""
+        from ..bot_info import is_bot
+        from ...character import Character
+        
         args = args.strip()
         if not args:
             return CommandResult.text(
                 "**角色卡审核命令**\n"
                 "`.cc <角色名> @KP` - 发起角色卡审核\n"
+                "`.cc <角色名> @机器人` - 自动审核通过\n"
                 "示例: `.cc 张三 @KP`\n\n"
-                "请先在网页上创建角色卡并提交审核，然后使用此命令发起审核\n"
-                "只有被 @ 的 KP 才能审核"
+                "请先在网页上创建角色卡并提交审核，然后使用此命令发起审核"
             )
         
         # 解析 @KP
@@ -204,9 +210,52 @@ class CharacterReviewCommand(BaseCommand):
         if review["user_id"] != self.ctx.user_id:
             return CommandResult.text("只有提交者可以发起审核")
         
+        # 检查是否 @ 机器人自己 -> 自动审核通过
+        if is_bot(kp_id):
+            # 自动审核通过，直接创建角色
+            char_data = review["char_data"]
+            
+            # 从 inventory 提取物品列表
+            items = []
+            for inv in char_data.get("inventory", []):
+                if inv.get("item"):
+                    items.append(inv["item"])
+                if inv.get("backpack"):
+                    items.append(inv["backpack"])
+            
+            # 提取武器列表
+            weapons = char_data.get("weapons", [])
+            
+            char = Character(
+                name=char_data["name"],
+                user_id=self.ctx.user_id,
+                attributes=char_data["attributes"],
+                skills=char_data["skills"],
+                hp=char_data["hp"],
+                max_hp=char_data["hp"],
+                mp=char_data["mp"],
+                max_mp=char_data["mp"],
+                san=char_data["san"],
+                max_san=99,
+                luck=char_data["attributes"].get("LUK", 50),
+                mov=char_data.get("mov", 8),
+                build=char_data.get("build", 0),
+                db=char_data.get("db", "0"),
+                items=items,
+                weapons=weapons,
+            )
+            
+            await self.ctx.char_manager.add(char)
+            
+            # 删除审核数据
+            await self.ctx.db.delete_character_review(char_name)
+            
+            logger.info(f"角色卡自动审核通过: {char_name} by {self.ctx.user_id}")
+            return CommandResult.text(f"✅ 角色卡 **{char_name}** 自动审核通过并创建成功！\n使用 `.pc show` 查看")
+        
         # 不能让自己审核自己
         if kp_id == self.ctx.user_id:
-            return CommandResult.text("不能让自己审核自己的角色卡，请 @ 其他 KP")
+            return CommandResult.text("不能让自己审核自己的角色卡，请 @ 其他 KP 或 @ 机器人自动通过")
         
         # 检查是否已有图片 URL
         image_url = review.get("image_url")

@@ -72,6 +72,10 @@ async def main(debug: bool = False):
     # 初始化客户端
     client = KookClient(settings.kook_token, settings.kook_api_base)
     
+    # 加载机器人 ID（需要先初始化 client）
+    from src.bot.bot_info import load_bot_id
+    await load_bot_id(db, client)
+    
     # 创建 Web 应用
     web_app = create_app(db, char_manager, token_service)
     

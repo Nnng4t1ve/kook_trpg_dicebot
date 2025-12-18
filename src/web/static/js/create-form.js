@@ -63,6 +63,20 @@ const FormManager = {
         return data;
     },
 
+    // 获取武器数据
+    getWeaponsData() {
+        const weapons = [];
+        for (let i = 1; i <= 3; i++) {
+            const name = document.querySelector(`input[name="weapon_name_${i}"]`)?.value || '';
+            const skill = document.querySelector(`input[name="weapon_skill_${i}"]`)?.value || '';
+            const damage = document.querySelector(`input[name="weapon_damage_${i}"]`)?.value || '';
+            if (name) {
+                weapons.push({ name, skill, damage });
+            }
+        }
+        return weapons;
+    },
+
     // 获取完整表单数据
     getFormData() {
         const name = document.getElementById('charName').value;
@@ -87,6 +101,7 @@ const FormManager = {
             mov: parseInt(document.getElementById('mov').textContent),
             build: parseInt(document.getElementById('build').textContent),
             db: document.getElementById('db').textContent,
+            weapons: this.getWeaponsData(),
             inventory: this.getInventoryData(),
             backstory: this.getBackstoryData()
         };

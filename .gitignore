@@ -18,6 +18,7 @@ ENV/
 .env
 data/*.db
 logs/*.log
+new_page_example/
 
 # Testing
 .pytest_cache/

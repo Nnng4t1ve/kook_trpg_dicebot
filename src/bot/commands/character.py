@@ -21,7 +21,7 @@ class CharacterCommand(BaseCommand):
         if sub_cmd == "new":
             return await self._pc_new(sub_args)
         elif sub_cmd == "create":
-            return await self._pc_create_link()
+            return await self._pc_create_link(sub_args)
         elif sub_cmd == "grow":
             return await self._pc_grow(sub_args)
         elif sub_cmd == "list":
@@ -47,9 +47,35 @@ class CharacterCommand(BaseCommand):
         await self.ctx.char_manager.add(char)
         return CommandResult.text(f"角色卡 **{char.name}** 导入成功！")
     
-    async def _pc_create_link(self) -> CommandResult:
-        """发送创建角色卡的交互卡片"""
-        card = CardBuilder.build_create_character_card()
+    async def _pc_create_link(self, args: str = "") -> CommandResult:
+        """
+        发送创建角色卡的交互卡片
+        
+        支持技能上限参数:
+        - .pc create        # 无上限
+        - .pc create 75     # 所有技能上限75
+        - .pc create 75/49  # 本职技能上限75，非本职技能上限49
+        """
+        skill_limit = None
+        occ_limit = None
+        non_occ_limit = None
+        
+        args = args.strip()
+        if args:
+            if "/" in args:
+                parts = args.split("/")
+                try:
+                    occ_limit = int(parts[0])
+                    non_occ_limit = int(parts[1])
+                except ValueError:
+                    return CommandResult.text("格式错误。用法: `.pc create [上限]` 或 `.pc create [本职上限/非本职上限]`")
+            else:
+                try:
+                    skill_limit = int(args)
+                except ValueError:
+                    return CommandResult.text("格式错误。用法: `.pc create [上限]` 或 `.pc create [本职上限/非本职上限]`")
+        
+        card = CardBuilder.build_create_character_card(skill_limit, occ_limit, non_occ_limit)
         return CommandResult.card(card)
     
     async def _pc_grow(self, args: str) -> CommandResult:
@@ -162,6 +188,15 @@ class CharacterCommand(BaseCommand):
             if non_default_skills:
                 skills_text = " | ".join(f"{k}:{v}" for k, v in non_default_skills)
                 lines.append(f"技能: {skills_text}")
+        
+        # 武器
+        if char.weapons:
+            weapons_text = " | ".join(
+                f"{w.get('name', '?')}({w.get('skill', '?')}、{w.get('damage', '?')})"
+                for w in char.weapons if w.get('name')
+            )
+            if weapons_text:
+                lines.append(f"武器: {weapons_text}")
         
         # 随身物品
         if char.items:

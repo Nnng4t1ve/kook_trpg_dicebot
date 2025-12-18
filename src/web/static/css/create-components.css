@@ -233,3 +233,437 @@
 .detailed-story-input::placeholder {
     color: #666;
 }
+
+
+/* ===== 基本信息行 ===== */
+.basic-info-row {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 10px;
+    margin-top: 10px;
+}
+
+.basic-info-item label {
+    font-size: var(--font-sm);
+    color: var(--text-muted);
+    margin-bottom: 4px;
+}
+
+.basic-info-item input {
+    text-align: center;
+}
+
+/* ===== 职业查询 ===== */
+.occupation-query-section {
+    margin-top: 15px;
+    padding-top: 15px;
+    border-top: 1px solid var(--border-light);
+}
+
+.occupation-query-row {
+    display: flex !important;
+    flex-direction: row !important;
+    flex-wrap: nowrap !important;
+    gap: 8px;
+    margin-bottom: 10px;
+    align-items: center;
+}
+
+.occupation-query-row input[type="number"] {
+    flex: 1 1 auto !important;
+    width: auto !important;
+    min-width: 0;
+    height: 38px;
+}
+
+/* 内联小按钮 */
+.btn-inline {
+    flex: 0 0 auto !important;
+    width: 42px !important;
+    height: 38px;
+    padding: 0;
+    border: none;
+    border-radius: var(--radius-md);
+    background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+    color: var(--text-primary);
+    font-size: var(--font-lg);
+    cursor: pointer;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.btn-inline:hover {
+    opacity: 0.9;
+}
+
+.occupation-output {
+    background: var(--bg-darker);
+    border-radius: var(--radius-lg);
+    padding: 12px;
+    min-height: 80px;
+}
+
+.occupation-output .occ-name {
+    color: var(--primary);
+    font-weight: bold;
+    font-size: var(--font-lg);
+    margin-bottom: 8px;
+}
+
+.occupation-output .occ-info {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 4px 12px;
+    font-size: var(--font-base);
+}
+
+.occupation-output .occ-label {
+    color: var(--text-muted);
+}
+
+.occupation-output .occ-value {
+    color: var(--text-secondary);
+}
+
+.occupation-output .occ-skills {
+    grid-column: 1 / -1;
+    margin-top: 8px;
+    padding-top: 8px;
+    border-top: 1px solid var(--border-light);
+    color: var(--text-secondary);
+    line-height: 1.5;
+}
+
+/* ===== 卡片内操作按钮 ===== */
+.btn-card-action {
+    margin-top: 12px;
+    padding: 10px;
+    background: linear-gradient(135deg, #607d8b, #455a64) !important;
+    font-size: var(--font-base);
+}
+
+/* ===== 武器表格 ===== */
+.weapon-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: var(--font-base);
+    table-layout: fixed;
+}
+
+.weapon-table th {
+    background: #8b5a2b;
+    color: var(--text-primary);
+    padding: 10px 8px;
+    text-align: center;
+    border: 1px solid #a0522d;
+}
+
+.weapon-table th:first-child {
+    width: 40%;
+}
+
+.weapon-table th:nth-child(2),
+.weapon-table th:nth-child(3) {
+    width: 30%;
+}
+
+.weapon-table td {
+    border: 1px solid var(--border-medium);
+    padding: 0;
+}
+
+.weapon-table tr:nth-child(odd) td {
+    background: rgba(139, 90, 43, 0.1);
+}
+
+.weapon-table tr:nth-child(even) td {
+    background: rgba(255, 255, 255, 0.05);
+}
+
+.weapon-table input {
+    width: 100%;
+    padding: 8px;
+    border: none;
+    background: transparent;
+    color: var(--text-primary);
+    text-align: center;
+    box-sizing: border-box;
+}
+
+.weapon-table input:focus {
+    outline: 1px solid var(--primary);
+    background: var(--bg-darker);
+}
+
+/* ===== 本职技能样式 ===== */
+.occupation-skill {
+    background: rgba(255, 193, 7, 0.1) !important;
+}
+
+.occupation-skill .skill-name {
+    color: #ffc107 !important;
+}
+
+.occ-marker {
+    color: #ffc107;
+    font-size: 0.9em;
+    margin-right: 4px;
+    text-shadow: 0 0 4px rgba(255, 193, 7, 0.5);
+}
+
+/* ===== 技能行双击交互 ===== */
+.skill-table tbody tr {
+    cursor: pointer;
+    transition: background 0.2s;
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+    user-select: none;
+}
+
+.skill-table tbody tr:hover {
+    background: rgba(255, 255, 255, 0.05);
+}
+
+/* 输入框仍可选中 */
+.skill-table input {
+    -webkit-user-select: text;
+    -moz-user-select: text;
+    -ms-user-select: text;
+    user-select: text;
+}
+
+
+/* ===== 批量随机按钮 ===== */
+.btn-random-multi {
+    background: linear-gradient(135deg, #9c27b0, #673ab7) !important;
+    margin-left: 5px;
+}
+
+/* ===== 批量随机预览面板 ===== */
+.random-preview-panel {
+    margin-top: 12px;
+    padding: 12px;
+    background: var(--bg-darker);
+    border-radius: var(--radius-lg);
+    border: 1px solid var(--border-medium);
+}
+
+.preview-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 12px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--border-light);
+    color: var(--text-secondary);
+    font-size: var(--font-base);
+}
+
+.preview-controls {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+}
+
+.preview-view-btn {
+    padding: 4px 10px;
+    border: 1px solid var(--border-medium);
+    border-radius: var(--radius-sm);
+    background: transparent;
+    color: var(--text-muted);
+    font-size: var(--font-sm);
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.preview-view-btn:hover {
+    border-color: var(--primary);
+    color: var(--primary);
+}
+
+.preview-view-btn.active {
+    background: var(--primary);
+    border-color: var(--primary);
+    color: var(--text-primary);
+}
+
+.preview-close-btn {
+    padding: 4px 8px;
+    border: none;
+    border-radius: var(--radius-sm);
+    background: var(--bg-dark);
+    color: var(--text-muted);
+    font-size: var(--font-base);
+    cursor: pointer;
+    margin-left: 8px;
+}
+
+.preview-close-btn:hover {
+    background: var(--danger);
+    color: var(--text-primary);
+}
+
+/* 卡片视图 */
+.preview-card-view {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 10px;
+}
+
+.preview-card {
+    background: var(--bg-card);
+    border-radius: var(--radius-lg);
+    padding: 10px;
+    cursor: pointer;
+    transition: all 0.2s;
+    border: 2px solid transparent;
+}
+
+.preview-card:hover {
+    border-color: var(--primary);
+    transform: translateY(-2px);
+}
+
+.preview-card-header {
+    text-align: center;
+    font-size: var(--font-sm);
+    color: var(--text-muted);
+    margin-bottom: 8px;
+    padding-bottom: 6px;
+    border-bottom: 1px solid var(--border-light);
+}
+
+.preview-card-total {
+    text-align: center;
+    font-size: var(--font-lg);
+    font-weight: bold;
+    color: var(--primary);
+    margin-bottom: 8px;
+}
+
+.preview-card-attrs {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 4px;
+    font-size: var(--font-xs);
+}
+
+.preview-card-attr {
+    text-align: center;
+    padding: 2px;
+    background: var(--bg-darker);
+    border-radius: 3px;
+}
+
+.preview-card-attr .attr-name {
+    color: var(--text-muted);
+}
+
+.preview-card-attr .attr-val {
+    color: var(--text-primary);
+    font-weight: bold;
+}
+
+/* 表格视图 */
+.preview-table-view {
+    overflow-x: auto;
+}
+
+.preview-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: var(--font-sm);
+}
+
+.preview-table th {
+    background: var(--bg-dark);
+    padding: 8px 4px;
+    text-align: center;
+    color: var(--secondary);
+    font-weight: normal;
+    border: 1px solid var(--border-light);
+}
+
+.preview-table td {
+    padding: 8px 4px;
+    text-align: center;
+    border: 1px solid var(--border-light);
+    color: var(--text-secondary);
+}
+
+.preview-table tr.preview-row {
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+.preview-table tr.preview-row:hover {
+    background: rgba(79, 195, 247, 0.15);
+}
+
+.preview-table .total-cell {
+    color: var(--primary);
+    font-weight: bold;
+}
+
+.preview-table .select-btn {
+    padding: 4px 12px;
+    border: none;
+    border-radius: var(--radius-sm);
+    background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+    color: var(--text-primary);
+    font-size: var(--font-sm);
+    cursor: pointer;
+}
+
+.preview-table .select-btn:hover {
+    opacity: 0.9;
+}
+
+
+/* 选中状态 */
+.preview-card.selected {
+    border-color: var(--success);
+    background: rgba(76, 175, 80, 0.15);
+}
+
+.preview-card.selected .preview-card-header {
+    color: var(--success);
+}
+
+.preview-table tr.preview-row.selected {
+    background: rgba(76, 175, 80, 0.15);
+}
+
+.preview-table tr.preview-row.selected td {
+    color: var(--text-primary);
+}
+
+.preview-table tr.preview-row.selected .select-btn {
+    background: linear-gradient(135deg, var(--success), var(--success-light));
+}
+
+
+/* 含幸运总值样式 */
+.preview-card-total .with-luk::before,
+.total-cell .with-luk::before {
+    content: " / ";
+}
+
+
+/* 技能上限提示 */
+.skill-limit-hint {
+    background: rgba(255, 152, 0, 0.2);
+    border: 1px solid rgba(255, 152, 0, 0.5);
+    border-radius: 6px;
+    padding: 10px 15px;
+    margin-bottom: 15px;
+    color: #ffb74d;
+    font-size: 0.95rem;
+}
+
+.skill-limit-hint strong {
+    color: #ffa726;
+}

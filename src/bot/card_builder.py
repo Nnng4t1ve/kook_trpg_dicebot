@@ -158,8 +158,20 @@ class CardBuilder:
         return json.dumps([card])
 
     @staticmethod
-    def build_create_character_card() -> str:
+    def build_create_character_card(
+        skill_limit: int = None,
+        occ_limit: int = None,
+        non_occ_limit: int = None
+    ) -> str:
         """构建创建角色卡的交互卡片"""
+        # 构建技能上限说明
+        if occ_limit is not None and non_occ_limit is not None:
+            limit_text = f"\n⚠️ 技能上限: 本职 **{occ_limit}** / 非本职 **{non_occ_limit}**"
+        elif skill_limit is not None:
+            limit_text = f"\n⚠️ 技能上限: **{skill_limit}**"
+        else:
+            limit_text = ""
+        
         card = {
             "type": "card",
             "theme": "info",
@@ -179,7 +191,7 @@ class CardBuilder:
                     "type": "section",
                     "text": {
                         "type": "kmarkdown",
-                        "content": "点击下方按钮获取专属创建链接\n链接将通过**私信**发送给你，仅限本人使用"
+                        "content": f"点击下方按钮获取专属创建链接\n链接将通过**私信**发送给你，仅限本人使用{limit_text}"
                     }
                 },
                 {
@@ -188,7 +200,12 @@ class CardBuilder:
                         {
                             "type": "button",
                             "theme": "primary",
-                            "value": json.dumps({"action": "create_character"}),
+                            "value": json.dumps({
+                                "action": "create_character",
+                                "skill_limit": skill_limit,
+                                "occ_limit": occ_limit,
+                                "non_occ_limit": non_occ_limit
+                            }),
                             "click": "return-val",
                             "text": {
                                 "type": "plain-text",
@@ -1013,8 +1030,21 @@ class CardBuilder:
         return json.dumps([card])
 
     @staticmethod
-    def build_create_link_card(url: str) -> str:
+    def build_create_link_card(
+        url: str,
+        skill_limit: int = None,
+        occ_limit: int = None,
+        non_occ_limit: int = None
+    ) -> str:
         """构建创建角色卡链接卡片（私聊发送）"""
+        # 构建技能上限说明
+        if occ_limit is not None and non_occ_limit is not None:
+            limit_text = f"\n⚠️ 技能上限: 本职 **{occ_limit}** / 非本职 **{non_occ_limit}**"
+        elif skill_limit is not None:
+            limit_text = f"\n⚠️ 技能上限: **{skill_limit}**"
+        else:
+            limit_text = ""
+        
         card = {
             "type": "card",
             "theme": "info",
@@ -1034,7 +1064,7 @@ class CardBuilder:
                     "type": "section",
                     "text": {
                         "type": "kmarkdown",
-                        "content": "点击下方按钮打开创建页面\n⏰ 链接有效期 10 分钟，仅限本人使用"
+                        "content": f"点击下方按钮打开创建页面\n⏰ 链接有效期 10 分钟，仅限本人使用{limit_text}"
                     }
                 },
                 {

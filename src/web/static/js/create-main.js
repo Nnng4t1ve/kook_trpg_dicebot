@@ -20,8 +20,29 @@ const CharacterCreator = {
         // 加载技能
         SkillManager.load();
 
+        // 初始化职业管理器
+        OccupationManager.init();
+
         // 初始化属性总值
         AttributeManager.updateTotal();
+        
+        // 显示技能上限提示
+        this.showSkillLimitHint();
+    },
+    
+    // 显示技能上限提示
+    showSkillLimitHint() {
+        const hintEl = document.getElementById('skillLimitHint');
+        if (!hintEl) return;
+        
+        if (typeof SKILL_LIMIT !== 'undefined' && SKILL_LIMIT !== null) {
+            hintEl.innerHTML = `⚠️ 技能上限: <strong>${SKILL_LIMIT}</strong>（所有技能成功率不能超过此值）`;
+            hintEl.style.display = 'block';
+        } else if (typeof OCC_LIMIT !== 'undefined' && OCC_LIMIT !== null && 
+                   typeof NON_OCC_LIMIT !== 'undefined' && NON_OCC_LIMIT !== null) {
+            hintEl.innerHTML = `⚠️ 技能上限: 本职 <strong>${OCC_LIMIT}</strong> / 非本职 <strong>${NON_OCC_LIMIT}</strong>（双击技能行标记为本职技能）`;
+            hintEl.style.display = 'block';
+        }
     }
 };
 

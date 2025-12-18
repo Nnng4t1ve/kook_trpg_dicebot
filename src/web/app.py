@@ -123,7 +123,10 @@ def create_app(
         return await create_approved_character(request, create_request)
     
     # 暴露便捷方法（兼容旧接口）
-    app.generate_token = token_service.generate_create_token
+    def generate_token_with_limits(user_id: str, skill_limit=None, occ_limit=None, non_occ_limit=None):
+        return token_service.generate_create_token(user_id, skill_limit, occ_limit, non_occ_limit)
+    
+    app.generate_token = generate_token_with_limits
     app.generate_grow_token = token_service.generate_grow_token
     app.start_cleanup_task = token_service.start_cleanup_task
     app.stop_cleanup_task = token_service.stop_cleanup_task

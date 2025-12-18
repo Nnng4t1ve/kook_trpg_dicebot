@@ -22,6 +22,7 @@ class Character:
     build: int = 0
     db: str = "0"
     items: List[str] = field(default_factory=list)  # 随身物品
+    weapons: List[Dict[str, str]] = field(default_factory=list)  # 武器列表 [{name, skill, damage}]
     
     def get_skill(self, name: str) -> Optional[int]:
         """获取技能值，支持属性和技能，支持别名"""
@@ -88,6 +89,7 @@ class Character:
             "build": self.build,
             "db": self.db,
             "items": self.items,
+            "weapons": self.weapons,
         }
     
     def to_json(self) -> str:

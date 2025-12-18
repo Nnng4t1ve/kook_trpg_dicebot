@@ -237,7 +237,7 @@ class MessageHandler:
         elif action == "san_check":
             await self._handle_san_check_button(value, user_id, target_id, user_name)
         elif action == "create_character":
-            await self._handle_create_character_button(user_id)
+            await self._handle_create_character_button(user_id, value)
         elif action == "grow_character":
             await self._handle_grow_character_button(user_id, value)
         elif action == "opposed_check":
@@ -372,19 +372,25 @@ class MessageHandler:
         await self.client.send_message(target_id, card, msg_type=10)
 
 
-    async def _handle_create_character_button(self, user_id: str):
+    async def _handle_create_character_button(self, user_id: str, value: dict = None):
         """处理创建角色卡按钮点击"""
         if not self.web_app:
             await self.client.send_direct_message(user_id, "Web 服务未启用")
             return
         
         from ..config import settings
-        token = self.web_app.generate_token(user_id)
+        
+        # 获取技能上限参数
+        skill_limit = value.get("skill_limit") if value else None
+        occ_limit = value.get("occ_limit") if value else None
+        non_occ_limit = value.get("non_occ_limit") if value else None
+        
+        token = self.web_app.generate_token(user_id, skill_limit, occ_limit, non_occ_limit)
         url = f"{settings.web_base_url}/create/{token}"
         
-        logger.info(f"生成角色卡创建链接: user={user_id}, token={token}")
+        logger.info(f"生成角色卡创建链接: user={user_id}, token={token}, limits={skill_limit}/{occ_limit}/{non_occ_limit}")
         
-        card = CardBuilder.build_create_link_card(url)
+        card = CardBuilder.build_create_link_card(url, skill_limit, occ_limit, non_occ_limit)
         result = await self.client.send_direct_message(user_id, card, msg_type=10)
         logger.info(f"发送创建链接私聊结果: user={user_id}, result={result}")
 

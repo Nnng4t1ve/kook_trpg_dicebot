@@ -125,6 +125,9 @@ async def create_character(
         if inv.get("backpack"):
             items.append(inv["backpack"])
     
+    # 提取武器列表
+    weapons = char_data.get("weapons", [])
+    
     char = Character(
         name=char_data["name"],
         user_id=user_id,
@@ -141,6 +144,7 @@ async def create_character(
         build=char_data.get("build", 0),
         db=char_data.get("db", "0"),
         items=items,
+        weapons=weapons,
     )
     
     await char_manager.add(char)
@@ -201,6 +205,9 @@ async def approve_and_create_character(
         if inv.get("backpack"):
             items.append(inv["backpack"])
     
+    # 提取武器列表
+    weapons = char_data.get("weapons", [])
+    
     char = Character(
         name=char_data["name"],
         user_id=user_id,
@@ -217,6 +224,7 @@ async def approve_and_create_character(
         build=char_data.get("build", 0),
         db=char_data.get("db", "0"),
         items=items,
+        weapons=weapons,
     )
     
     await char_manager.add(char)
@@ -258,6 +266,9 @@ async def create_approved_character(
         if inv.get("backpack"):
             items.append(inv["backpack"])
     
+    # 提取武器列表
+    weapons = char_data.get("weapons", [])
+    
     char = Character(
         name=char_data["name"],
         user_id=body.user_id,
@@ -274,6 +285,7 @@ async def create_approved_character(
         build=char_data.get("build", 0),
         db=char_data.get("db", "0"),
         items=items,
+        weapons=weapons,
     )
     
     await char_manager.add(char)

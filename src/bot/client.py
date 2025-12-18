@@ -315,3 +315,31 @@ class KookClient:
                 return True
             logger.error(f"处理好友申请失败: {data}")
             return False
+
+    async def get_me(self) -> dict | None:
+        """
+        获取机器人自身信息
+        
+        Returns:
+            机器人信息字典，包含 id, username 等
+        """
+        # 如果 session 还没创建，临时创建一个
+        need_close = False
+        session = self._session
+        if session is None:
+            session = aiohttp.ClientSession()
+            need_close = True
+        
+        try:
+            async with session.get(
+                f"{self.api_base}/user/me",
+                headers=self.headers,
+            ) as resp:
+                data = await resp.json()
+                if data.get("code") == 0:
+                    return data.get("data")
+                logger.error(f"获取机器人信息失败: {data}")
+                return None
+        finally:
+            if need_close:
+                await session.close()
