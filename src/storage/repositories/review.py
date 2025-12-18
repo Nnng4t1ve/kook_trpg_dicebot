@@ -158,12 +158,12 @@ class ReviewRepository(BaseRepository[CharacterReview]):
         count = await self.delete(char_name=char_name)
         return count > 0
     
-    async def cleanup_expired(self, expire_hours: int = 24) -> int:
+    async def cleanup_expired(self, expire_hours: int = 72) -> int:
         """
-        清理过期的审核记录
+        清理过期的审核记录（默认3天）
         
         Args:
-            expire_hours: 过期时间（小时）
+            expire_hours: 过期时间（小时），默认72小时（3天）
         
         Returns:
             删除的数量

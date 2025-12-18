@@ -329,6 +329,31 @@ class Database:
                     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
                 """)
 
+                # 启用事件调度器
+                await cur.execute("SET GLOBAL event_scheduler = ON")
+
+                # 创建定时清理事件：每天凌晨3点执行
+                await cur.execute("DROP EVENT IF EXISTS cleanup_expired_data")
+                await cur.execute("""
+                    CREATE EVENT cleanup_expired_data
+                    ON SCHEDULE EVERY 1 DAY
+                    STARTS CONCAT(CURDATE() + INTERVAL 1 DAY, ' 03:00:00')
+                    DO
+                    BEGIN
+                        -- 清理过期的审核记录（3天）
+                        DELETE FROM character_reviews 
+                        WHERE created_at < DATE_SUB(NOW(), INTERVAL 3 DAY);
+                        
+                        -- 清理过期的游戏日志（14天）
+                        DELETE FROM game_logs 
+                        WHERE started_at < DATE_SUB(NOW(), INTERVAL 14 DAY);
+                        
+                        -- 清理过期的预定投票（3天）
+                        DELETE FROM schedule_votes 
+                        WHERE created_at < DATE_SUB(NOW(), INTERVAL 3 DAY);
+                    END
+                """)
+
     # ===== 兼容旧接口 =====
     # 以下方法保持向后兼容，内部使用仓库实现
 
@@ -437,8 +462,8 @@ class Database:
         """删除角色卡审核记录"""
         return await self.reviews.delete_by_char_name(char_name)
 
-    async def cleanup_expired_reviews(self, expire_hours: int = 24) -> int:
-        """清理过期的审核记录"""
+    async def cleanup_expired_reviews(self, expire_hours: int = 72) -> int:
+        """清理过期的审核记录（默认3天）"""
         return await self.reviews.cleanup_expired(expire_hours)
 
     # ===== 机器人设置 =====
@@ -847,3 +872,16 @@ class Database:
         if match:
             return match.group(1)
         return None
+
+    async def cleanup_expired_game_logs(self, expire_days: int = 14) -> int:
+        """清理过期的游戏日志（默认14天）"""
+        async with self._pool.acquire() as conn:
+            async with conn.cursor() as cur:
+                await cur.execute(
+                    """
+                    DELETE FROM game_logs 
+                    WHERE started_at < DATE_SUB(NOW(), INTERVAL %s DAY)
+                """,
+                    (expire_days,),
+                )
+                return cur.rowcount
