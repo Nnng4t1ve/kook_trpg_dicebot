@@ -53,24 +53,23 @@ class CharacterCommand(BaseCommand):
         return CommandResult.card(card)
     
     async def _pc_grow(self, args: str) -> CommandResult:
-        """角色卡成长: .pc grow <角色名> <技能1> <技能2> ..."""
+        """角色卡成长: .pc grow <技能1> <技能2> ..."""
         if not self.ctx.web_app:
             return CommandResult.text("Web 服务未启用")
         
-        parts = args.split()
-        if len(parts) < 2:
+        skill_names = args.split()
+        if not skill_names:
             return CommandResult.text(
-                "格式: .pc grow <角色名> <技能1> <技能2> ...\n"
-                "示例: .pc grow 张三 侦查 聆听 图书馆"
+                "格式: .pc grow <技能1> <技能2> ...\n"
+                "示例: .pc grow 侦查 聆听 图书馆"
             )
         
-        char_name = parts[0]
-        skill_names = parts[1:]
-        
-        # 检查角色是否存在
-        char = await self.ctx.char_manager.get(self.ctx.user_id, char_name)
+        # 使用当前激活的角色卡
+        char = await self.ctx.char_manager.get_active(self.ctx.user_id)
         if not char:
-            return CommandResult.text(f"未找到角色: {char_name}")
+            return CommandResult.text("请先选择角色卡: `.pc switch <角色名>`")
+        
+        char_name = char.name
         
         # 验证技能是否存在于角色卡中
         valid_skills = []

@@ -1011,3 +1011,92 @@ class CardBuilder:
             ],
         }
         return json.dumps([card])
+
+    @staticmethod
+    def build_create_link_card(url: str) -> str:
+        """构建创建角色卡链接卡片（私聊发送）"""
+        card = {
+            "type": "card",
+            "theme": "info",
+            "size": "lg",
+            "modules": [
+                {
+                    "type": "header",
+                    "text": {
+                        "type": "plain-text",
+                        "content": "🎲 角色卡创建链接"
+                    }
+                },
+                {
+                    "type": "divider"
+                },
+                {
+                    "type": "section",
+                    "text": {
+                        "type": "kmarkdown",
+                        "content": "点击下方按钮打开创建页面\n⏰ 链接有效期 10 分钟，仅限本人使用"
+                    }
+                },
+                {
+                    "type": "action-group",
+                    "elements": [
+                        {
+                            "type": "button",
+                            "theme": "primary",
+                            "click": "link",
+                            "value": url,
+                            "text": {
+                                "type": "plain-text",
+                                "content": "✨ 打开创建页面"
+                            }
+                        }
+                    ]
+                }
+            ]
+        }
+        return json.dumps([card])
+
+    @staticmethod
+    def build_grow_link_card(char_name: str, skills: list, url: str) -> str:
+        """构建角色成长链接卡片（私聊发送）"""
+        skills_text = "、".join(skills)
+        card = {
+            "type": "card",
+            "theme": "success",
+            "size": "lg",
+            "modules": [
+                {
+                    "type": "header",
+                    "text": {
+                        "type": "plain-text",
+                        "content": f"📈 {char_name} 技能成长"
+                    }
+                },
+                {
+                    "type": "divider"
+                },
+                {
+                    "type": "section",
+                    "text": {
+                        "type": "kmarkdown",
+                        "content": f"可成长技能: **{skills_text}**\n⏰ 链接有效期 10 分钟"
+                    }
+                },
+                {
+                    "type": "action-group",
+                    "elements": [
+                        {
+                            "type": "button",
+                            "theme": "primary",
+                            "click": "link",
+                            "value": url,
+                            "text": {
+                                "type": "plain-text",
+                                "content": "🎯 打开成长页面"
+                            }
+                        }
+                    ]
+                }
+            ]
+        }
+        return json.dumps([card])

@@ -384,8 +384,9 @@ class MessageHandler:
         
         logger.info(f"生成角色卡创建链接: user={user_id}, token={token}")
         
-        msg = f"🎲 **你的专属角色卡创建链接**\n\n{url}\n\n⏰ 链接有效期 10 分钟，仅限本人使用"
-        await self.client.send_direct_message(user_id, msg)
+        card = CardBuilder.build_create_link_card(url)
+        result = await self.client.send_direct_message(user_id, card, msg_type=10)
+        logger.info(f"发送创建链接私聊结果: user={user_id}, result={result}")
 
     async def _handle_grow_character_button(self, user_id: str, value: dict):
         """处理成长角色卡按钮点击"""
@@ -411,9 +412,9 @@ class MessageHandler:
 
         logger.info(f"生成角色成长链接: user={user_id}, char={char_name}, token={token}")
 
-        skills_text = "、".join(skills)
-        msg = f"📈 **{char_name}** 的技能成长链接\n\n{url}\n\n可成长技能: {skills_text}\n⏰ 链接有效期 10 分钟"
-        await self.client.send_direct_message(user_id, msg)
+        card = CardBuilder.build_grow_link_card(char_name, skills, url)
+        result = await self.client.send_direct_message(user_id, card, msg_type=10)
+        logger.info(f"发送成长链接私聊结果: user={user_id}, result={result}")
 
     async def _handle_opposed_check_button(
         self, value: dict, user_id: str, channel_id: str, user_name: str

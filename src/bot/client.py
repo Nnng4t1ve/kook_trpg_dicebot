@@ -157,7 +157,13 @@ class KookClient:
     
     async def send_direct_message(self, target_id: str, content: str,
                                   msg_type: int = 9) -> dict:
-        """发送私聊消息"""
+        """发送私聊消息
+        
+        Args:
+            target_id: 用户 ID
+            content: 消息内容
+            msg_type: 消息类型 (9=文本, 10=卡片)
+        """
         payload = {
             "type": msg_type,
             "target_id": target_id,
@@ -169,7 +175,10 @@ class KookClient:
             headers=self.headers,
             json=payload
         ) as resp:
-            return await resp.json()
+            result = await resp.json()
+            if result.get("code") != 0:
+                logger.error(f"发送私聊消息失败: {result}")
+            return result
 
     async def upload_asset(self, file_data: bytes, filename: str = "image.png") -> str | None:
         """
