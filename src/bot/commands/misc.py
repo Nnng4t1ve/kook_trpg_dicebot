@@ -215,6 +215,21 @@ class CharacterReviewCommand(BaseCommand):
             # 自动审核通过，直接创建角色
             char_data = review["char_data"]
             
+            # 处理图片：上传到 KOOK 获取 URL
+            image_url = review.get("image_url")
+            if not image_url:
+                image_data = review.get("image_data")
+                if image_data:
+                    if image_data.startswith("data:image/png;base64,"):
+                        image_data = image_data.split(",", 1)[1]
+                    try:
+                        image_bytes = base64.b64decode(image_data)
+                        image_url = await self.ctx.client.upload_asset(image_bytes, f"{char_name}.png")
+                        if image_url:
+                            logger.info(f"角色卡图片上传成功(自动审核): {char_name} -> {image_url}")
+                    except Exception as e:
+                        logger.warning(f"自动审核时图片上传失败: {e}")
+            
             # 从 inventory 提取物品列表
             items = []
             for inv in char_data.get("inventory", []):
@@ -243,9 +258,15 @@ class CharacterReviewCommand(BaseCommand):
                 db=char_data.get("db", "0"),
                 items=items,
                 weapons=weapons,
+                image_url=image_url,
             )
             
             await self.ctx.char_manager.add(char)
+            
+            # 使原token失效
+            saved_token = char_data.get("_token")
+            if saved_token and self.ctx.web_app:
+                self.ctx.web_app.state.token_service.invalidate(saved_token)
             
             # 删除审核数据
             await self.ctx.db.delete_character_review(char_name)

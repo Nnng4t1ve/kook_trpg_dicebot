@@ -165,7 +165,11 @@ const SkillManager = {
             }
 
             const isCustomName = row.dataset.customName === 'true';
-            if (total > 0) {
+            
+            // 克苏鲁神话即使为0也要保存（用于计算SAN上限）
+            const isCthulhuMythos = skillName === '克苏鲁神话';
+            
+            if (total > 0 || isCthulhuMythos) {
                 if (isCustomName && !customNameInput?.value.trim()) {
                     return;
                 }

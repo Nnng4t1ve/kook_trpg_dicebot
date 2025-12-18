@@ -146,64 +146,14 @@ class CharacterCommand(BaseCommand):
         return CommandResult.text(f"未找到角色: {name}")
     
     async def _pc_show(self) -> CommandResult:
-        """显示当前角色"""
+        """显示当前角色（卡片展示）"""
         char = await self.ctx.char_manager.get_active(self.ctx.user_id)
         if not char:
             return CommandResult.text("当前没有选中的角色卡")
         
-        max_san = self._calc_max_san(char)
-        lines = [f"**{char.name}**"]
-        lines.append(
-            f"HP: {char.hp}/{char.max_hp} | MP: {char.mp}/{char.max_mp} | SAN: {char.san}/{max_san}"
-        )
-        lines.append(f"体格: {char.build} | DB: {char.db} | MOV: {char.mov}")
-        
-        if char.attributes:
-            attrs = " | ".join(f"{k}:{v}" for k, v in char.attributes.items())
-            lines.append(f"属性: {attrs}")
-        
-        # 技能：按成功率从高到低排序，只显示非初始值的技能
-        if char.skills:
-            from ...data.skills import COC7_SKILLS
-            # 构建初始值映射
-            initial_values = {}
-            for name, initial, *_ in COC7_SKILLS:
-                # 处理可自定义名称的技能（如 "格斗:"）
-                if name.endswith(":"):
-                    initial_values[name.rstrip(":")] = initial
-                else:
-                    initial_values[name] = initial
-            
-            # 过滤非初始值的技能并排序
-            non_default_skills = []
-            for skill_name, value in char.skills.items():
-                # 获取初始值
-                initial = self._get_skill_initial(skill_name, initial_values)
-                if value != initial:
-                    non_default_skills.append((skill_name, value))
-            
-            # 按成功率从高到低排序
-            non_default_skills.sort(key=lambda x: x[1], reverse=True)
-            
-            if non_default_skills:
-                skills_text = " | ".join(f"{k}:{v}" for k, v in non_default_skills)
-                lines.append(f"技能: {skills_text}")
-        
-        # 武器
-        if char.weapons:
-            weapons_text = " | ".join(
-                f"{w.get('name', '?')}({w.get('skill', '?')}、{w.get('damage', '?')})"
-                for w in char.weapons if w.get('name')
-            )
-            if weapons_text:
-                lines.append(f"武器: {weapons_text}")
-        
-        # 随身物品
-        if char.items:
-            items_text = "、".join(char.items)
-            lines.append(f"物品: {items_text}")
-        
-        return CommandResult.text("\n".join(lines))
+        # 使用卡片展示
+        card = CardBuilder.build_character_show_card(char)
+        return CommandResult.card(card)
     
     def _get_skill_initial(self, skill_name: str, initial_values: dict) -> int:
         """获取技能的初始值"""

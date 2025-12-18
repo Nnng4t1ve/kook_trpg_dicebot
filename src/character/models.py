@@ -23,6 +23,7 @@ class Character:
     db: str = "0"
     items: List[str] = field(default_factory=list)  # 随身物品
     weapons: List[Dict[str, str]] = field(default_factory=list)  # 武器列表 [{name, skill, damage}]
+    image_url: Optional[str] = None  # 角色卡图片URL
     
     def get_skill(self, name: str) -> Optional[int]:
         """获取技能值，支持属性和技能，支持别名"""
@@ -90,6 +91,7 @@ class Character:
             "db": self.db,
             "items": self.items,
             "weapons": self.weapons,
+            "image_url": self.image_url,
         }
     
     def to_json(self) -> str:

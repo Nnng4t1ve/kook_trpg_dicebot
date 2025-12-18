@@ -1130,3 +1130,161 @@ class CardBuilder:
             ]
         }
         return json.dumps([card])
+
+    # 技能初始值映射表
+    SKILL_INITIAL_VALUES = {
+        "侦查": 25, "聆听": 20, "图书馆使用": 20, "心理学": 10, "急救": 30,
+        "说服": 10, "话术": 5, "取悦": 15, "恐吓": 15, "信用评级": 0,
+        "会计": 5, "人类学": 1, "考古学": 1, "历史": 5, "法律": 5,
+        "博物学": 10, "神秘学": 5, "克苏鲁神话": 0,
+        "估价": 5, "追踪": 10, "导航": 10, "读唇": 1,
+        "攀爬": 20, "跳跃": 20, "游泳": 20, "投掷": 20, "骑术": 5, "潜水": 1, "潜行": 20,
+        "汽车驾驶": 20, "电气维修": 10, "机械维修": 10, "操作重型机械": 1,
+        "锁匠": 1, "乔装": 5, "计算机使用Ω": 5, "电子学Ω": 1,
+        "医学": 1, "精神分析": 1, "催眠": 1,
+        "斗殴": 25, "格斗:斗殴": 25, "格斗：斗殴": 25,
+        "斧": 15, "格斗:斧": 15, "格斗：斧": 15,
+        "剑": 20, "格斗:剑": 20, "格斗：剑": 20,
+        "手枪": 20, "射击:手枪": 20, "射击：手枪": 20,
+        "步枪/霰弹枪": 25, "射击:步枪/霰弹枪": 25, "射击：步枪/霰弹枪": 25,
+        "冲锋枪": 15, "射击:冲锋枪": 15, "射击：冲锋枪": 15,
+        "妙手": 10, "驯兽": 5, "炮术": 1, "爆破": 1,
+    }
+
+    @classmethod
+    def _get_skill_initial(cls, skill_name: str) -> int:
+        """获取技能初始值"""
+        # 直接匹配
+        if skill_name in cls.SKILL_INITIAL_VALUES:
+            return cls.SKILL_INITIAL_VALUES[skill_name]
+        # 统一冒号格式后匹配
+        normalized = skill_name.replace("：", ":")
+        if normalized in cls.SKILL_INITIAL_VALUES:
+            return cls.SKILL_INITIAL_VALUES[normalized]
+        # 默认返回 1（大多数冷门技能的初始值）
+        return 1
+
+    @staticmethod
+    def build_character_show_card(char) -> str:
+        """构建角色卡展示卡片"""
+        # 构建属性文本
+        attrs = char.attributes
+        attr_text = (
+            f"**力量**: {attrs.get('STR', 50)} **体质**: {attrs.get('CON', 50)} **体型**: {attrs.get('SIZ', 50)}\n"
+            f"**敏捷**: {attrs.get('DEX', 50)} **外貌**: {attrs.get('APP', 50)} **智力**: {attrs.get('INT', 50)}\n"
+            f"**意志**: {attrs.get('POW', 50)} **教育**: {attrs.get('EDU', 50)} **幸运**: {attrs.get('LUK', 50)}"
+        )
+        
+        # 构建状态文本
+        status_text = (
+            f"**HP**: {char.hp}/{char.max_hp} **MP**: {char.mp}/{char.max_mp} **SAN**: {char.san}/{char.max_san}\n"
+            f"**MOV**: {char.mov} **体格**: {char.build} **伤害加深**: {char.db}"
+        )
+        
+        # 构建技能文本（只显示非初始值的技能）
+        skills_text = ""
+        if char.skills:
+            skill_items = [
+                f"{name}: {value}" 
+                for name, value in char.skills.items() 
+                if value > 0 and value != CardBuilder._get_skill_initial(name)
+            ]
+            if skill_items:
+                skills_text = "\n**技能**: " + "、".join(skill_items[:15])
+                if len(skill_items) > 15:
+                    skills_text += f"... (共{len(skill_items)}个技能)"
+        
+        # 构建武器文本
+        weapons_text = ""
+        if char.weapons:
+            weapon_items = [
+                f"{w.get('name', '?')}({w.get('skill', '?')}、{w.get('damage', '?')})"
+                for w in char.weapons if w.get('name') and w.get('name').strip()
+            ]
+            if weapon_items:
+                weapons_text = "\n**武器**: " + " | ".join(weapon_items)
+        
+        # 构建物品文本
+        items_text = ""
+        if char.items:
+            valid_items = [item for item in char.items if item and item.strip()]
+            if valid_items:
+                items_text = "\n**物品**: " + "、".join(valid_items)
+        
+        # 构建卡片模块
+        modules = [
+            {
+                "type": "header",
+                "text": {
+                    "type": "plain-text",
+                    "content": f"📋 {char.name}"
+                }
+            },
+            {
+                "type": "divider"
+            }
+        ]
+        
+        # 如果有图片，添加查看大图按钮
+        if char.image_url and char.image_url.strip():
+            modules.append({
+                "type": "action-group",
+                "elements": [
+                    {
+                        "type": "button",
+                        "theme": "info",
+                        "click": "link",
+                        "value": char.image_url,
+                        "text": {
+                            "type": "plain-text",
+                            "content": "🖼️ 查看角色卡图片"
+                        }
+                    }
+                ]
+            })
+        
+        # 添加属性和状态信息
+        modules.extend([
+            {
+                "type": "section",
+                "text": {
+                    "type": "kmarkdown",
+                    "content": f"**📊 属性**\n{attr_text}"
+                }
+            },
+            {
+                "type": "section",
+                "text": {
+                    "type": "kmarkdown",
+                    "content": f"**💖 状态**\n{status_text}"
+                }
+            }
+        ])
+        
+        # 添加技能、武器、物品信息（如果有的话）
+        detail_content = ""
+        if skills_text:
+            detail_content += skills_text
+        if weapons_text:
+            detail_content += weapons_text
+        if items_text:
+            detail_content += items_text
+        
+        # 只有当有详细信息时才添加详细信息模块
+        if detail_content.strip():
+            modules.append({
+                "type": "section",
+                "text": {
+                    "type": "kmarkdown",
+                    "content": f"**🎯 详细信息**{detail_content}"
+                }
+            })
+        
+        card = {
+            "type": "card",
+            "theme": "secondary",
+            "size": "lg",
+            "modules": modules
+        }
+        
+        return json.dumps([card])

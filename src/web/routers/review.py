@@ -70,15 +70,17 @@ async def submit_review(
     if not body.char_name or not body.image_data or not body.char_data:
         raise HTTPException(status_code=400, detail="缺少必要参数")
     
+    # 将token保存到char_data中，以便角色创建后使其失效
+    char_data = body.char_data.copy()
+    char_data["_token"] = body.token
+    
     # 保存到数据库
     await db.save_character_review(
         char_name=body.char_name,
         user_id=user_id,
         image_data=body.image_data,
-        char_data=body.char_data,
+        char_data=char_data,
     )
-    
-    # 注意：提交审核后不使 token 失效，等审核通过后用户点击创建时才失效
     
     logger.info(f"角色卡审核提交: {body.char_name} by {user_id}")
     return {"success": True, "message": f"角色卡 {body.char_name} 已提交审核"}
@@ -145,6 +147,7 @@ async def create_character(
         db=char_data.get("db", "0"),
         items=items,
         weapons=weapons,
+        image_url=review.get("image_url"),
     )
     
     await char_manager.add(char)
@@ -152,8 +155,11 @@ async def create_character(
     # 删除审核数据
     await db.delete_character_review(body.char_name)
     
-    # 创建成功后使 token 失效
+    # 创建成功后使 token 失效（当前token和保存的token都失效）
     token_service.invalidate(body.token)
+    saved_token = char_data.get("_token")
+    if saved_token and saved_token != body.token:
+        token_service.invalidate(saved_token)
     
     logger.info(f"角色卡创建成功: {body.char_name} by {user_id}")
     return {"success": True, "message": f"角色 {body.char_name} 创建成功！"}
@@ -225,9 +231,16 @@ async def approve_and_create_character(
         db=char_data.get("db", "0"),
         items=items,
         weapons=weapons,
+        image_url=review.get("image_url"),
     )
     
     await char_manager.add(char)
+    
+    # 使原token失效
+    saved_token = char_data.get("_token")
+    if saved_token:
+        token_service = get_token_service(request)
+        token_service.invalidate(saved_token)
     
     # 删除审核数据
     await db.delete_character_review(body.char_name)
@@ -289,6 +302,12 @@ async def create_approved_character(
     )
     
     await char_manager.add(char)
+    
+    # 使原token失效
+    saved_token = char_data.get("_token")
+    if saved_token:
+        token_service = get_token_service(request)
+        token_service.invalidate(saved_token)
     
     # 删除审核数据
     await db.delete_character_review(body.char_name)
