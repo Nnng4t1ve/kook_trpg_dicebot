@@ -268,8 +268,9 @@ const CacheManager = {
         AttributeManager.updateDerived();
         
         // 恢复技能需要等技能加载完成后处理
-        if (data.skills) {
+        if (data.skills || data.skillsDetailed) {
             this._pendingSkills = data.skills;
+            this._pendingSkillsDetailed = data.skillsDetailed;
             // 延迟恢复技能
             setTimeout(() => this.restoreSkills(), 500);
         }
@@ -277,21 +278,32 @@ const CacheManager = {
     
     // 恢复技能数据
     restoreSkills() {
-        if (!this._pendingSkills) return;
+        if (!this._pendingSkills && !this._pendingSkillsDetailed) return;
         
-        const skills = this._pendingSkills;
+        const skillsDetailed = this._pendingSkillsDetailed || {};
+        const skills = this._pendingSkills || {};
         delete this._pendingSkills;
+        delete this._pendingSkillsDetailed;
         
         document.querySelectorAll('.skill-row').forEach(row => {
             const skillName = row.dataset.skill;
-            if (skills[skillName] !== undefined) {
+            
+            // 优先使用详细数据（包含职业点和兴趣点分配）
+            if (skillsDetailed[skillName]) {
+                const { job, hobby } = skillsDetailed[skillName];
+                const jobEl = row.querySelector('.job');
+                const hobbyEl = row.querySelector('.hobby');
+                if (jobEl) jobEl.value = job || 0;
+                if (hobbyEl) hobbyEl.value = hobby || 0;
+                SkillManager.updateRowTotal(row);
+            } else if (skills[skillName] !== undefined) {
+                // 兼容旧数据：只有总值，全部放到职业点
                 const total = skills[skillName];
                 const baseEl = row.querySelector('.base');
                 const base = baseEl.tagName === 'INPUT'
                     ? (parseInt(baseEl.value) || 0)
                     : (parseInt(baseEl.textContent) || 0);
                 
-                // 计算需要分配的点数（简化处理，全部放到职业点）
                 const allocated = total - base;
                 if (allocated > 0) {
                     const jobEl = row.querySelector('.job');

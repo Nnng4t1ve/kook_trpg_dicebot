@@ -100,6 +100,7 @@ const FormManager = {
                 LUK: getNumValue('luk') || 50
             },
             skills: SkillManager.getData(),
+            skillsDetailed: SkillManager.getDetailedData(),
             hp: parseInt(document.getElementById('hp').textContent),
             mp: parseInt(document.getElementById('mp').textContent),
             san: parseInt(document.getElementById('san').textContent),

@@ -170,13 +170,22 @@ const AIManager = {
         
         // 更新UI状态
         btn.disabled = true;
-        btn.textContent = '🤖 生成中...';
+        btn.textContent = '🤖 保存中...';
         if (resultEl) {
-            resultEl.innerHTML = '<p class="generating">AI正在生成详细经历，请稍候...</p>';
+            resultEl.innerHTML = '<p class="generating">正在保存角色数据...</p>';
             resultEl.style.display = 'block';
         }
         
         try {
+            // 先提交一次缓存
+            if (typeof CacheManager !== 'undefined') {
+                await CacheManager.saveToServer(false);
+            }
+            
+            btn.textContent = '🤖 生成中...';
+            if (resultEl) {
+                resultEl.innerHTML = '<p class="generating">AI正在生成详细经历，请稍候...</p>';
+            }
             const resp = await fetch('/api/review/llm/generate-backstory', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },

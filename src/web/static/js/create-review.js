@@ -149,6 +149,8 @@ const ReviewManager = {
                 document.getElementById('exportText').value = `.cc ${data.name}`;
                 document.getElementById('exportResult').style.display = 'block';
                 showToast('审核已提交！在 KOOK 中使用 .cc ' + data.name + ' 发起审核', 'success');
+                // 提交成功后开始轮询审核状态
+                this.startPolling();
             } else {
                 alert('提交失败: ' + (result.detail || result.message));
             }
@@ -198,6 +200,8 @@ const ReviewManager = {
                     submitBtn.disabled = false;
                     submitBtn.textContent = '✨ 创建角色卡 (已审核通过)';
                     submitBtn.classList.add('approved');
+                    // 审核通过后停止轮询
+                    this.stopPolling();
                 }
             }
         } catch (err) {
@@ -278,8 +282,20 @@ const ReviewManager = {
             e.preventDefault();
             this.submitCreate();
         });
-
-        // 定期检查审核状态
-        setInterval(() => this.checkReviewStatus(), 5000);
+    },
+    
+    // 开始轮询审核状态（提交审核后调用）
+    startPolling() {
+        if (this._pollingTimer) return; // 避免重复启动
+        
+        this._pollingTimer = setInterval(() => this.checkReviewStatus(), 15000); // 15秒间隔
+    },
+    
+    // 停止轮询
+    stopPolling() {
+        if (this._pollingTimer) {
+            clearInterval(this._pollingTimer);
+            this._pollingTimer = null;
+        }
     }
 };

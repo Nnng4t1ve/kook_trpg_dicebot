@@ -178,5 +178,28 @@ const SkillManager = {
         });
 
         return skills;
+    },
+    
+    // 获取技能详细数据（包含职业点和兴趣点分配）
+    getDetailedData() {
+        const skills = {};
+
+        document.querySelectorAll('.skill-row').forEach(row => {
+            let skillName = row.dataset.skill;
+            const job = parseInt(row.querySelector('.job').value) || 0;
+            const hobby = parseInt(row.querySelector('.hobby').value) || 0;
+
+            const customNameInput = row.querySelector('.custom-name');
+            if (customNameInput && customNameInput.value.trim()) {
+                skillName = customNameInput.value.trim();
+            }
+
+            // 只保存有分配点数的技能
+            if (job > 0 || hobby > 0) {
+                skills[skillName] = { job, hobby };
+            }
+        });
+
+        return skills;
     }
 };
