@@ -33,6 +33,11 @@
 - D100 > 当前技能值 = 成功
 - 成功后 +1D10
 
+### 🤖 AI 背景故事生成
+- 根据角色属性、技能、背景要素自动生成详细经历
+- 支持 OpenAI 兼容 API
+- 5分钟请求冷却机制
+
 ### 🤖 NPC 系统
 - 快速创建 NPC (支持难度模板)
 - NPC 技能检定与对抗
@@ -242,6 +247,12 @@ DB_NAME=trpg_dicebot
 # Web 服务配置
 WEB_PORT=8080
 WEB_BASE_URL=http://your-server-ip:8080
+
+# LLM 服务配置 (可选，用于AI生成背景故事)
+LLM_SERVICE=False
+LLM_API_URL=https://api.openai.com/v1
+LLM_API_TOKEN=your-api-token
+LLM_MODEL=gpt-3.5-turbo
 ```
 
 ### 4. 运行
@@ -324,7 +335,8 @@ src/
 │       └── base.py            # 基础仓库类 (CRUD)
 │
 ├── services/                  # 业务服务
-│   └── token.py               # Token 服务 (链接生成/验证)
+│   ├── token.py               # Token 服务 (链接生成/验证)
+│   └── llm.py                 # LLM 服务 (AI生成背景故事)
 │
 ├── logging/                   # 日志系统
 │   ├── config.py              # 日志配置
