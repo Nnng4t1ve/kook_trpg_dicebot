@@ -67,8 +67,19 @@ def _calc_derived_stats(attributes: dict) -> tuple:
         build, db = 1, "+1D4"
     elif str_siz <= 204:
         build, db = 2, "+1D6"
-    else:
+    elif str_siz <= 284:
         build, db = 3, "+2D6"
+    elif str_siz <= 364:
+        build, db = 4, "+3D6"
+    elif str_siz <= 444:
+        build, db = 5, "+4D6"
+    elif str_siz <= 524:
+        build, db = 6, "+5D6"
+    else:
+        # 每+80，体格+1，DB+1D6
+        extra = (str_siz - 525) // 80 + 1
+        build = 6 + extra
+        db = f"+{5 + extra}D6"
     
     return hp, mp, san, build, db
 
