@@ -5,7 +5,7 @@ from pathlib import Path
 
 
 # 敏感字段名列表，这些字段在日志中会被掩码
-SENSITIVE_FIELDS = {"kook_token", "db_password"}
+SENSITIVE_FIELDS = {"kook_token", "db_password", "llm_api_token"}
 
 
 class Settings(BaseSettings):
@@ -38,6 +38,13 @@ class Settings(BaseSettings):
     web_host: str = Field("0.0.0.0", env="WEB_HOST")
     web_port: int = Field(8080, env="WEB_PORT")
     web_base_url: str = Field("http://localhost:8080", env="WEB_BASE_URL")
+    
+    # LLM 服务配置
+    llm_service: bool = Field(False, env="LLM_SERVICE")
+    llm_api_url: str = Field("", env="LLM_API_URL")
+    llm_api_token: str = Field("", env="LLM_API_TOKEN")
+    llm_model: str = Field("", env="LLM_MODEL")
+    llm_prompt: str = Field("", env="PROMPT")
     
     class Config:
         env_file = ".env"

@@ -205,6 +205,13 @@ const CacheManager = {
             document.getElementById('charName').value = data.name;
         }
         
+        // 恢复基本信息
+        if (data.age) document.getElementById('charAge').value = data.age;
+        if (data.gender) document.getElementById('charGender').value = data.gender;
+        if (data.nationality) document.getElementById('charNationality').value = data.nationality;
+        if (data.occupation) document.getElementById('charOccupation').value = data.occupation;
+        if (data.era) document.getElementById('charEra').value = data.era;
+        
         // 恢复属性
         if (data.attributes) {
             const attrMap = {

@@ -436,3 +436,190 @@ input[readonly] {
         transform: translateX(-50%) translateY(0);
     }
 }
+
+
+/* ===== AI生成区域 ===== */
+.ai-generate-section {
+    margin-bottom: 12px;
+    padding: 12px;
+    background: linear-gradient(135deg, rgba(156, 39, 176, 0.15), rgba(103, 58, 183, 0.1));
+    border: 1px solid rgba(156, 39, 176, 0.3);
+    border-radius: var(--radius-lg);
+}
+
+.ai-generate-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
+.btn-ai {
+    padding: 10px 20px;
+    border: none;
+    border-radius: var(--radius-md);
+    background: linear-gradient(135deg, var(--purple), var(--purple-dark));
+    color: var(--text-primary);
+    font-size: var(--font-md);
+    font-weight: bold;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.btn-ai:hover {
+    opacity: 0.9;
+    transform: scale(1.02);
+}
+
+.btn-ai:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    transform: none;
+}
+
+.btn-ai.cooling {
+    background: linear-gradient(135deg, #666, #444);
+}
+
+.ai-cooldown {
+    font-size: var(--font-sm);
+    color: var(--warning);
+    font-weight: bold;
+}
+
+.ai-hint {
+    font-size: var(--font-sm);
+    color: var(--text-hint);
+    margin-top: 8px;
+}
+
+.ai-result {
+    margin-top: 10px;
+    padding: 10px;
+    border-radius: var(--radius-md);
+    background: var(--bg-darker);
+}
+
+.ai-result .generating {
+    color: var(--secondary);
+    animation: pulse 1.5s infinite;
+}
+
+.ai-result .success {
+    color: var(--success);
+    background: transparent;
+    padding: 0;
+}
+
+.ai-result .error {
+    color: var(--danger);
+}
+
+
+/* ===== 职业信息浮动面板 ===== */
+.occupation-floating-panel {
+    position: fixed;
+    top: 80px;
+    right: 20px;
+    width: 280px;
+    max-width: calc(100vw - 40px);
+    background: linear-gradient(135deg, rgba(26, 26, 46, 0.98), rgba(22, 33, 62, 0.98));
+    border: 1px solid var(--primary);
+    border-radius: var(--radius-lg);
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5), 0 0 10px rgba(79, 195, 247, 0.2);
+    z-index: 1000;
+    animation: floatIn 0.3s ease-out;
+}
+
+@keyframes floatIn {
+    from {
+        opacity: 0;
+        transform: translateX(20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateX(0);
+    }
+}
+
+.floating-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 12px;
+    background: rgba(79, 195, 247, 0.15);
+    border-bottom: 1px solid var(--border-light);
+    border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+}
+
+.floating-title {
+    font-size: var(--font-md);
+    font-weight: bold;
+    color: var(--primary);
+}
+
+.floating-close {
+    background: none;
+    border: none;
+    color: var(--text-muted);
+    font-size: var(--font-lg);
+    cursor: pointer;
+    padding: 2px 6px;
+    border-radius: var(--radius-sm);
+    transition: all 0.2s;
+}
+
+.floating-close:hover {
+    background: rgba(255, 255, 255, 0.1);
+    color: var(--text-primary);
+}
+
+.floating-content {
+    padding: 12px;
+}
+
+.floating-occ-name {
+    font-size: var(--font-lg);
+    font-weight: bold;
+    color: var(--warning);
+    margin-bottom: 8px;
+}
+
+.floating-occ-info {
+    font-size: var(--font-sm);
+    color: var(--text-secondary);
+    margin-bottom: 8px;
+}
+
+.floating-occ-info div {
+    margin-bottom: 4px;
+}
+
+.floating-occ-info .label {
+    color: var(--text-muted);
+    margin-right: 4px;
+}
+
+.floating-occ-skills {
+    font-size: var(--font-sm);
+    color: var(--secondary);
+    line-height: 1.5;
+    max-height: 150px;
+    overflow-y: auto;
+}
+
+/* 移动端适配 */
+@media (max-width: 768px) {
+    .occupation-floating-panel {
+        top: auto;
+        bottom: 20px;
+        right: 10px;
+        left: 10px;
+        width: auto;
+        max-width: none;
+    }
+    
+    .floating-occ-skills {
+        max-height: 100px;
+    }
+}

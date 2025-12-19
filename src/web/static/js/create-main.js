@@ -33,6 +33,11 @@ const CharacterCreator = {
         if (typeof CacheManager !== 'undefined') {
             CacheManager.init(token);
         }
+        
+        // 初始化AI生成管理器
+        if (typeof AIManager !== 'undefined') {
+            AIManager.init();
+        }
     },
     
     // 显示技能上限提示

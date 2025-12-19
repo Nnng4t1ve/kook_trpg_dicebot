@@ -53,6 +53,14 @@
                         <label>国籍</label>
                         <input type="text" name="nationality" id="charNationality" placeholder="__">
                     </div>
+                    <div class="basic-info-item">
+                        <label>职业</label>
+                        <input type="text" name="occupation" id="charOccupation" placeholder="职业名称">
+                    </div>
+                    <div class="basic-info-item">
+                        <label>年代</label>
+                        <input type="text" name="era" id="charEra" placeholder="如: 1920s">
+                    </div>
                 </div>
                 <!-- 职业查询 -->
                 <div class="occupation-query-section">
@@ -311,6 +319,15 @@
                 <!-- 详细经历 -->
                 <div class="detailed-story-section">
                     <h3>📝 详细经历</h3>
+                    <!-- AI生成区域 -->
+                    <div id="aiGenerateSection" class="ai-generate-section" style="display:none;">
+                        <div class="ai-generate-row">
+                            <button type="button" class="btn-ai" id="aiGenerateBtn">🤖 AI生成详细经历</button>
+                            <span id="aiCooldown" class="ai-cooldown" style="display:none;"></span>
+                        </div>
+                        <p class="ai-hint">根据角色信息自动生成背景故事（每次请求后有5分钟冷却）</p>
+                        <div id="aiGenerateResult" class="ai-result" style="display:none;"></div>
+                    </div>
                     <textarea class="detailed-story-input" name="detailed_story"
                         placeholder="在此详细描述角色的背景故事、成长经历、重要事件等...&#10;&#10;可以包括：&#10;- 角色的出生和童年&#10;- 重要的人生转折点&#10;- 如何获得现有技能&#10;- 与重要之人的关系&#10;- 来到调查地点的原因&#10;..."></textarea>
                 </div>
@@ -350,6 +367,7 @@
     <script src="/static/js/create-review.js"></script>
     <script src="/static/js/create-occupation.js"></script>
     <script src="/static/js/create-cache.js"></script>
+    <script src="/static/js/create-ai.js"></script>
     <script src="/static/js/create-main.js"></script>
 
     <!-- 职业查询和本职技能绑定 -->

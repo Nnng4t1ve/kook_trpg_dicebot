@@ -5,12 +5,16 @@
 const OccupationManager = {
     occupations: [],
     occupationSkills: new Set(),
+    currentOccupation: null,  // 当前查询的职业
+    floatingPanel: null,      // 浮动面板元素
 
     // 初始化
     async init() {
         console.log('OccupationManager 初始化中...');
         await this.loadOccupations();
+        this.createFloatingPanel();
         this.bindEvents();
+        this.bindScrollEvent();
         console.log('OccupationManager 初始化完成，职业数量:', this.occupations.length);
     },
 
@@ -96,6 +100,7 @@ const OccupationManager = {
         if (id === 0) {
             output.innerHTML = `<div class="occ-name">${occupation.name}</div>`;
             this.clearOccupationSkills();
+            this.setCurrentOccupation(occupation);
             return;
         }
 
@@ -113,6 +118,7 @@ const OccupationManager = {
         `;
 
         this.parseOccupationSkills(occupation.skills);
+        this.setCurrentOccupation(occupation);
     },
 
     // 解析职业技能字符串
@@ -177,5 +183,89 @@ const OccupationManager = {
             this.occupationSkills.add(skillName);
             console.log('添加本职技能:', skillName);
         }
+    },
+
+    // 创建浮动面板
+    createFloatingPanel() {
+        const panel = document.createElement('div');
+        panel.id = 'occupationFloatingPanel';
+        panel.className = 'occupation-floating-panel';
+        panel.innerHTML = `
+            <div class="floating-header">
+                <span class="floating-title">📋 职业信息</span>
+                <button type="button" class="floating-close" onclick="OccupationManager.hideFloatingPanel()">✕</button>
+            </div>
+            <div class="floating-content"></div>
+        `;
+        panel.style.display = 'none';
+        document.body.appendChild(panel);
+        this.floatingPanel = panel;
+    },
+
+    // 绑定滚动事件
+    bindScrollEvent() {
+        let ticking = false;
+        window.addEventListener('scroll', () => {
+            if (!ticking) {
+                requestAnimationFrame(() => {
+                    this.checkFloatingVisibility();
+                    ticking = false;
+                });
+                ticking = true;
+            }
+        });
+    },
+
+    // 检查是否显示浮动面板
+    checkFloatingVisibility() {
+        if (!this.currentOccupation) return;
+
+        const output = document.getElementById('occupationOutput');
+        if (!output) return;
+
+        const rect = output.getBoundingClientRect();
+        const isOutOfView = rect.bottom < 0;
+
+        if (isOutOfView) {
+            this.showFloatingPanel();
+        } else {
+            this.hideFloatingPanel();
+        }
+    },
+
+    // 显示浮动面板
+    showFloatingPanel() {
+        if (!this.floatingPanel || !this.currentOccupation) return;
+        
+        const occ = this.currentOccupation;
+        const content = this.floatingPanel.querySelector('.floating-content');
+        
+        if (occ.id === 0) {
+            content.innerHTML = `<div class="floating-occ-name">${occ.name}</div>`;
+        } else {
+            content.innerHTML = `
+                <div class="floating-occ-name">${occ.name}</div>
+                <div class="floating-occ-info">
+                    <div><span class="label">信用:</span> ${occ.credit}</div>
+                    <div><span class="label">属性:</span> ${occ.attributes}</div>
+                </div>
+                <div class="floating-occ-skills">${occ.skills}</div>
+            `;
+        }
+        
+        this.floatingPanel.style.display = 'block';
+    },
+
+    // 隐藏浮动面板
+    hideFloatingPanel() {
+        if (this.floatingPanel) {
+            this.floatingPanel.style.display = 'none';
+        }
+    },
+
+    // 更新当前职业（在查询时调用）
+    setCurrentOccupation(occupation) {
+        this.currentOccupation = occupation;
+        this.checkFloatingVisibility();
     }
 };

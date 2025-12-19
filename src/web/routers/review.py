@@ -68,6 +68,26 @@ class CreateCharacterRequest(BaseModel):
     char_name: str
 
 
+class GenerateBackstoryRequest(BaseModel):
+    """AI生成背景故事请求"""
+    token: str
+    char_info: dict  # 角色信息
+
+
+class GenerateBackstoryResponse(BaseModel):
+    """AI生成背景故事响应"""
+    success: bool
+    content: str = ""
+    error: str = ""
+    cooldown_remaining: int = 0  # 剩余冷却秒数
+
+
+class LLMStatusResponse(BaseModel):
+    """LLM服务状态响应"""
+    enabled: bool
+    cooldown_remaining: int = 0
+
+
 # ===== API 端点 =====
 
 @router.post("/cache", response_model=CacheResponse)
@@ -406,3 +426,68 @@ async def create_approved_character(
 
     logger.info(f"角色卡创建成功: {body.char_name} by {body.user_id}")
     return {"success": True, "message": f"角色 {body.char_name} 创建成功！"}
+
+
+# ===== LLM 相关端点 =====
+
+@router.get("/llm/status", response_model=LLMStatusResponse)
+async def get_llm_status(
+    request: Request,
+    token: str,
+):
+    """获取LLM服务状态和冷却时间"""
+    from ...services.llm import get_llm_service
+    
+    token_service = get_token_service(request)
+    user_id = token_service.validate(token, "create")
+    if not user_id:
+        raise HTTPException(status_code=403, detail="链接已过期，请重新获取")
+    
+    llm = get_llm_service()
+    return {
+        "enabled": llm.enabled,
+        "cooldown_remaining": llm.get_cooldown_remaining(user_id)
+    }
+
+
+@router.post("/llm/generate-backstory", response_model=GenerateBackstoryResponse)
+async def generate_backstory(
+    request: Request,
+    body: GenerateBackstoryRequest,
+):
+    """AI生成角色详细经历"""
+    from ...services.llm import get_llm_service
+    
+    token_service = get_token_service(request)
+    user_id = token_service.validate(body.token, "create")
+    if not user_id:
+        raise HTTPException(status_code=403, detail="链接已过期，请重新获取")
+    
+    llm = get_llm_service()
+    
+    if not llm.enabled:
+        return {
+            "success": False,
+            "error": "AI生成功能未启用",
+            "cooldown_remaining": 0
+        }
+    
+    # 检查冷却
+    remaining = llm.get_cooldown_remaining(user_id)
+    if remaining > 0:
+        return {
+            "success": False,
+            "error": f"请求冷却中",
+            "cooldown_remaining": remaining
+        }
+    
+    # 构建提示词并生成
+    prompt = llm.build_backstory_prompt(body.char_info)
+    result = await llm.generate(prompt, user_id)
+    
+    return {
+        "success": result.success,
+        "content": result.content,
+        "error": result.error,
+        "cooldown_remaining": llm.get_cooldown_remaining(user_id)
+    }

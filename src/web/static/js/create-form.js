@@ -83,6 +83,11 @@ const FormManager = {
         
         return {
             name,
+            age: document.getElementById('charAge')?.value || '',
+            gender: document.getElementById('charGender')?.value || '',
+            nationality: document.getElementById('charNationality')?.value || '',
+            occupation: document.getElementById('charOccupation')?.value || '',
+            era: document.getElementById('charEra')?.value || '',
             attributes: {
                 STR: getNumValue('str') || 50,
                 CON: getNumValue('con') || 50,
