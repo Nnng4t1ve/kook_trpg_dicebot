@@ -310,3 +310,129 @@ input[readonly] {
     border-radius: 10px;
     text-align: center;
 }
+
+
+/* ===== Token状态和缓存 ===== */
+.token-status-card {
+    background: linear-gradient(135deg, rgba(79, 195, 247, 0.15), rgba(33, 150, 243, 0.1));
+    border: 1px solid rgba(79, 195, 247, 0.3);
+    padding: 12px 16px;
+}
+
+.token-status-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 12px;
+}
+
+.token-expire-info,
+.cache-status-info {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: var(--font-md);
+}
+
+.token-icon,
+.cache-icon {
+    font-size: 1.2rem;
+}
+
+.token-expire-info strong {
+    color: var(--primary);
+    font-size: var(--font-lg);
+}
+
+.token-expire-info.warning strong {
+    color: var(--warning);
+}
+
+.token-expire-info.danger strong {
+    color: var(--danger);
+    animation: pulse 1s infinite;
+}
+
+.cache-status-info #cacheStatus {
+    color: var(--text-muted);
+}
+
+.cache-status-info #cacheStatus.cached {
+    color: var(--success);
+}
+
+.cache-status-info #cacheStatus.saving {
+    color: var(--warning);
+}
+
+.btn-cache {
+    padding: 6px 12px;
+    border: none;
+    border-radius: var(--radius-md);
+    background: linear-gradient(135deg, var(--success), var(--success-light));
+    color: var(--text-primary);
+    font-size: var(--font-sm);
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.btn-cache:hover {
+    opacity: 0.9;
+    transform: scale(1.02);
+}
+
+.btn-cache:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.btn-cache.saving {
+    background: linear-gradient(135deg, var(--warning), var(--warning-dark));
+}
+
+@media (max-width: 600px) {
+    .token-status-row {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+}
+
+
+/* ===== Toast 提示 ===== */
+.toast {
+    position: fixed;
+    top: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    padding: 12px 24px;
+    border-radius: var(--radius-lg);
+    color: var(--text-primary);
+    font-size: var(--font-md);
+    z-index: 10000;
+    animation: toastIn 0.3s ease-out;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+.toast.success {
+    background: linear-gradient(135deg, var(--success), var(--success-light));
+}
+
+.toast.warning {
+    background: linear-gradient(135deg, var(--warning), var(--warning-dark));
+}
+
+.toast.error {
+    background: linear-gradient(135deg, var(--danger), var(--danger-dark));
+}
+
+@keyframes toastIn {
+    from {
+        opacity: 0;
+        transform: translateX(-50%) translateY(-20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateX(-50%) translateY(0);
+    }
+}

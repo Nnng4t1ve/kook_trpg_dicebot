@@ -213,11 +213,41 @@ class Database:
                         image_data LONGTEXT,
                         image_url VARCHAR(512),
                         char_data JSON NOT NULL,
+                        occupation_skills JSON,
+                        random_sets JSON,
                         approved BOOLEAN DEFAULT FALSE,
                         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                         INDEX idx_user (user_id)
                     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
                 """)
+
+                # 添加 occupation_skills 列（如果不存在）
+                await cur.execute("""
+                    SELECT COUNT(*) FROM information_schema.COLUMNS 
+                    WHERE TABLE_SCHEMA = DATABASE() 
+                    AND TABLE_NAME = 'character_reviews' 
+                    AND COLUMN_NAME = 'occupation_skills'
+                """)
+                row = await cur.fetchone()
+                if row[0] == 0:
+                    await cur.execute("""
+                        ALTER TABLE character_reviews 
+                        ADD COLUMN occupation_skills JSON AFTER char_data
+                    """)
+
+                # 添加 random_sets 列（如果不存在）
+                await cur.execute("""
+                    SELECT COUNT(*) FROM information_schema.COLUMNS 
+                    WHERE TABLE_SCHEMA = DATABASE() 
+                    AND TABLE_NAME = 'character_reviews' 
+                    AND COLUMN_NAME = 'random_sets'
+                """)
+                row = await cur.fetchone()
+                if row[0] == 0:
+                    await cur.execute("""
+                        ALTER TABLE character_reviews 
+                        ADD COLUMN random_sets JSON AFTER occupation_skills
+                    """)
 
                 await cur.execute("""
                     CREATE TABLE IF NOT EXISTS notebooks (
@@ -321,36 +351,85 @@ class Database:
                         content TEXT NOT NULL,
                         msg_type VARCHAR(16) DEFAULT 'text',
                         is_bot BOOLEAN DEFAULT FALSE,
-                        roll_result JSON NULL,
+                        if_cmd BOOLEAN DEFAULT FALSE,
                         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                         INDEX idx_log_name (log_name),
                         INDEX idx_user (user_id),
                         FOREIGN KEY (log_name) REFERENCES game_logs(log_name) ON DELETE CASCADE
                     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
                 """)
+                
+                # 迁移：将 roll_result 列替换为 if_cmd 列（如果旧列存在）
+                await cur.execute("""
+                    SELECT COUNT(*) FROM information_schema.COLUMNS 
+                    WHERE TABLE_SCHEMA = DATABASE() 
+                    AND TABLE_NAME = 'game_log_entries' 
+                    AND COLUMN_NAME = 'roll_result'
+                """)
+                row = await cur.fetchone()
+                if row[0] > 0:
+                    # 删除旧的 roll_result 列
+                    await cur.execute("""
+                        ALTER TABLE game_log_entries DROP COLUMN roll_result
+                    """)
+                
+                # 添加 if_cmd 列（如果不存在）
+                await cur.execute("""
+                    SELECT COUNT(*) FROM information_schema.COLUMNS 
+                    WHERE TABLE_SCHEMA = DATABASE() 
+                    AND TABLE_NAME = 'game_log_entries' 
+                    AND COLUMN_NAME = 'if_cmd'
+                """)
+                row = await cur.fetchone()
+                if row[0] == 0:
+                    await cur.execute("""
+                        ALTER TABLE game_log_entries 
+                        ADD COLUMN if_cmd BOOLEAN DEFAULT FALSE AFTER is_bot
+                    """)
 
                 # 启用事件调度器
                 await cur.execute("SET GLOBAL event_scheduler = ON")
 
                 # 创建定时清理事件：每天凌晨3点执行
+                # 使用 LIMIT 分批删除避免长时间锁表，ON COMPLETION PRESERVE 保证事件永久保留
                 await cur.execute("DROP EVENT IF EXISTS cleanup_expired_data")
                 await cur.execute("""
                     CREATE EVENT cleanup_expired_data
                     ON SCHEDULE EVERY 1 DAY
-                    STARTS CONCAT(CURDATE() + INTERVAL 1 DAY, ' 03:00:00')
+                    STARTS (TIMESTAMP(CURDATE()) + INTERVAL 1 DAY + INTERVAL 3 HOUR)
+                    ON COMPLETION PRESERVE
+                    ENABLE
+                    COMMENT '清理过期数据：审核记录3天、游戏日志14天、预定投票3天'
                     DO
                     BEGIN
-                        -- 清理过期的审核记录（3天）
-                        DELETE FROM character_reviews 
-                        WHERE created_at < DATE_SUB(NOW(), INTERVAL 3 DAY);
+                        DECLARE batch_size INT DEFAULT 1000;
+                        DECLARE affected_rows INT DEFAULT 1;
                         
-                        -- 清理过期的游戏日志（14天）
-                        DELETE FROM game_logs 
-                        WHERE started_at < DATE_SUB(NOW(), INTERVAL 14 DAY);
+                        -- 分批清理过期的审核记录（3天）
+                        WHILE affected_rows > 0 DO
+                            DELETE FROM character_reviews 
+                            WHERE created_at < DATE_SUB(CURDATE(), INTERVAL 3 DAY)
+                            LIMIT batch_size;
+                            SET affected_rows = ROW_COUNT();
+                        END WHILE;
                         
-                        -- 清理过期的预定投票（3天）
-                        DELETE FROM schedule_votes 
-                        WHERE created_at < DATE_SUB(NOW(), INTERVAL 3 DAY);
+                        -- 分批清理过期的游戏日志（14天）
+                        SET affected_rows = 1;
+                        WHILE affected_rows > 0 DO
+                            DELETE FROM game_logs 
+                            WHERE started_at < DATE_SUB(CURDATE(), INTERVAL 14 DAY)
+                            LIMIT batch_size;
+                            SET affected_rows = ROW_COUNT();
+                        END WHILE;
+                        
+                        -- 分批清理过期的预定投票（3天）
+                        SET affected_rows = 1;
+                        WHILE affected_rows > 0 DO
+                            DELETE FROM schedule_votes 
+                            WHERE created_at < DATE_SUB(CURDATE(), INTERVAL 3 DAY)
+                            LIMIT batch_size;
+                            SET affected_rows = ROW_COUNT();
+                        END WHILE;
                     END
                 """)
 
@@ -422,15 +501,20 @@ class Database:
         image_data: str,
         char_data: dict,
         image_url: str = None,
+        occupation_skills: list = None,
+        random_sets: list = None,
     ):
         """保存角色卡审核记录"""
         from .repositories import CharacterReview
+
         review = CharacterReview(
             char_name=char_name,
             user_id=user_id,
             image_data=image_data,
             image_url=image_url,
             char_data=char_data,
+            occupation_skills=occupation_skills,
+            random_sets=random_sets,
             approved=False,
         )
         await self.reviews.save(review)
@@ -445,6 +529,8 @@ class Database:
                 "image_data": review.image_data,
                 "image_url": review.image_url,
                 "char_data": review.char_data,
+                "occupation_skills": review.occupation_skills,
+                "random_sets": review.random_sets,
                 "approved": review.approved,
                 "created_at": review.created_at,
             }
@@ -713,7 +799,7 @@ class Database:
         content: str,
         msg_type: str = "text",
         is_bot: bool = False,
-        roll_result: dict = None,
+        if_cmd: bool = False,
     ):
         """添加日志条目"""
         async with self._pool.acquire() as conn:
@@ -721,7 +807,7 @@ class Database:
                 await cur.execute(
                     """
                     INSERT INTO game_log_entries 
-                    (log_name, user_id, user_name, content, msg_type, is_bot, roll_result)
+                    (log_name, user_id, user_name, content, msg_type, is_bot, if_cmd)
                     VALUES (%s, %s, %s, %s, %s, %s, %s)
                 """,
                     (
@@ -731,7 +817,7 @@ class Database:
                         content,
                         msg_type,
                         is_bot,
-                        json.dumps(roll_result) if roll_result else None,
+                        if_cmd,
                     ),
                 )
 
@@ -741,7 +827,7 @@ class Database:
             async with conn.cursor() as cur:
                 await cur.execute(
                     """
-                    SELECT user_id, user_name, content, msg_type, is_bot, roll_result, created_at
+                    SELECT user_id, user_name, content, msg_type, is_bot, if_cmd, created_at
                     FROM game_log_entries
                     WHERE log_name = %s
                     ORDER BY created_at ASC
@@ -759,7 +845,7 @@ class Database:
                             "content": row[2],
                             "msg_type": row[3],
                             "is_bot": row[4],
-                            "roll_result": json.loads(row[5]) if row[5] else None,
+                            "if_cmd": row[5],
                             "created_at": row[6].isoformat() if row[6] else None,
                         }
                     )
@@ -783,7 +869,38 @@ class Database:
 
         async with self._pool.acquire() as conn:
             async with conn.cursor() as cur:
-                # 获取所有非Bot用户发送的骰点命令的下一条Bot回复
+                # 获取日志信息，包括频道ID和参与者
+                await cur.execute(
+                    "SELECT channel_id, participants FROM game_logs WHERE log_name = %s",
+                    (log_name,),
+                )
+                log_row = await cur.fetchone()
+                channel_id = log_row[0] if log_row else None
+                participants = json.loads(log_row[1]) if log_row and log_row[1] else []
+
+                # 预加载：角色名 -> 用户ID 映射
+                char_name_to_user: dict[str, str] = {}
+
+                # 先加载NPC（优先级低）
+                if channel_id:
+                    await cur.execute(
+                        "SELECT name FROM npcs WHERE channel_id = %s",
+                        (channel_id,),
+                    )
+                    for row in await cur.fetchall():
+                        char_name_to_user[row[0]] = f"npc:{row[0]}"
+
+                # 再加载参与者的角色（优先级高，会覆盖同名NPC）
+                if participants:
+                    placeholders = ",".join(["%s"] * len(participants))
+                    await cur.execute(
+                        f"SELECT name, user_id FROM characters WHERE user_id IN ({placeholders})",
+                        tuple(participants),
+                    )
+                    for row in await cur.fetchall():
+                        char_name_to_user[row[0]] = row[1]
+
+                # 获取所有消息
                 await cur.execute(
                     """
                     SELECT user_id, user_name, content, is_bot
@@ -795,64 +912,114 @@ class Database:
                 )
                 rows = await cur.fetchall()
 
+                def find_user_by_char_name(char_name: str) -> Optional[str]:
+                    """通过角色名查找用户ID（从预加载的缓存中查找）"""
+                    return char_name_to_user.get(char_name)
+
                 # 统计每个用户的骰点结果
                 user_stats: dict[str, dict] = {}
-                
-                # 遍历消息，找到用户的骰点命令和对应的Bot回复
+
+                def add_result(uid: str, uname: str, result_level: str):
+                    """添加一条检定结果到统计"""
+                    if uid not in user_stats:
+                        user_stats[uid] = {
+                            "user_name": uname,
+                            "total_rolls": 0,
+                            "success": 0,
+                            "failure": 0,
+                            "critical": 0,
+                            "fumble": 0,
+                        }
+                    stats = user_stats[uid]
+                    stats["total_rolls"] += 1
+                    if result_level == "大成功":
+                        stats["critical"] += 1
+                        stats["success"] += 1
+                    elif result_level == "大失败":
+                        stats["fumble"] += 1
+                        stats["failure"] += 1
+                    elif result_level in ("成功", "困难成功", "极难成功"):
+                        stats["success"] += 1
+                    elif result_level == "失败":
+                        stats["failure"] += 1
+
+                # 遍历消息
                 last_user_id = None
                 last_user_name = None
-                
+
                 for row in rows:
                     user_id = row[0]
                     user_name = row[1]
                     content = row[2]
                     is_bot = row[3]
-                    
+
                     # 如果是用户发送的骰点命令，记录用户信息
-                    if not is_bot and content.startswith((".ra", ".rc", "。ra", "。rc", "/ra", "/rc")):
+                    if not is_bot and content.startswith(
+                        (".ra", ".rc", "。ra", "。rc", "/ra", "/rc")
+                    ):
                         last_user_id = user_id
                         last_user_name = user_name
                         continue
-                    
-                    # 如果是Bot回复且有上一个用户的骰点命令
-                    if is_bot and last_user_id and "检定" in content:
-                        # 解析骰点结果
-                        result_level = self._parse_roll_result(content)
-                        
-                        if result_level:
-                            if last_user_id not in user_stats:
-                                user_stats[last_user_id] = {
-                                    "user_name": last_user_name,
-                                    "total_rolls": 0,
-                                    "success": 0,
-                                    "failure": 0,
-                                    "critical": 0,
-                                    "fumble": 0,
-                                }
-                            
-                            stats = user_stats[last_user_id]
-                            stats["total_rolls"] += 1
-                            
-                            if result_level == "大成功":
-                                stats["critical"] += 1
-                                stats["success"] += 1
-                            elif result_level == "大失败":
-                                stats["fumble"] += 1
-                                stats["failure"] += 1
-                            elif result_level in ("成功", "困难成功", "极难成功"):
-                                stats["success"] += 1
-                            elif result_level == "失败":
-                                stats["failure"] += 1
-                        
-                        # 重置，避免重复计算
+
+                    # 如果是Bot回复
+                    if is_bot:
+                        # 方式1: 处理 .ra/.rc 命令的文本回复
+                        if last_user_id and "检定" in content:
+                            result_level = self._parse_roll_result(content)
+                            if result_level:
+                                add_result(last_user_id, last_user_name, result_level)
+                            last_user_id = None
+                            last_user_name = None
+                            continue
+
+                        # 方式2: 处理 .check 卡片交互的检定结果
+                        # 卡片消息是 JSON 格式，包含用户名和检定结果
+                        if content.startswith("[{"):
+                            parsed_results = self._parse_card_check_result(content)
+                            if parsed_results:
+                                for card_user_name, result_level in parsed_results:
+                                    # 先从已有统计中查找
+                                    matched_uid = None
+                                    for uid, stats in user_stats.items():
+                                        if stats["user_name"] == card_user_name:
+                                            matched_uid = uid
+                                            break
+
+                                    # 如果没找到，从预加载缓存中查找
+                                    if not matched_uid:
+                                        matched_uid = find_user_by_char_name(
+                                            card_user_name
+                                        )
+
+                                    if matched_uid:
+                                        add_result(
+                                            matched_uid, card_user_name, result_level
+                                        )
+                                    else:
+                                        # 查不到就当作NPC
+                                        add_result(
+                                            f"npc:{card_user_name}",
+                                            card_user_name,
+                                            result_level,
+                                        )
+
+                        # 重置
                         last_user_id = None
                         last_user_name = None
 
                 # 找出各项最多的用户
-                most_success = max(user_stats.values(), key=lambda x: x["success"], default=None)
-                most_failure = max(user_stats.values(), key=lambda x: x["failure"], default=None)
-                most_critical = max(user_stats.values(), key=lambda x: x["critical"], default=None)
-                most_fumble = max(user_stats.values(), key=lambda x: x["fumble"], default=None)
+                most_success = max(
+                    user_stats.values(), key=lambda x: x["success"], default=None
+                )
+                most_failure = max(
+                    user_stats.values(), key=lambda x: x["failure"], default=None
+                )
+                most_critical = max(
+                    user_stats.values(), key=lambda x: x["critical"], default=None
+                )
+                most_fumble = max(
+                    user_stats.values(), key=lambda x: x["fumble"], default=None
+                )
 
                 return {
                     "user_stats": user_stats,
@@ -863,10 +1030,68 @@ class Database:
                     "total_rolls": sum(s["total_rolls"] for s in user_stats.values()),
                 }
 
+    def _parse_card_check_result(
+        self, content: str
+    ) -> Optional[list[tuple[str, str]]]:
+        """从卡片消息中解析检定结果，返回 [(用户名, 结果等级), ...]"""
+        import re
+
+        results = []
+
+        try:
+            cards = json.loads(content)
+            if not isinstance(cards, list):
+                return None
+
+            for card in cards:
+                modules = card.get("modules", [])
+
+                # 检查卡片类型，通过 header 判断
+                header_text = ""
+                for module in modules:
+                    if module.get("type") == "header":
+                        text_obj = module.get("text", {})
+                        header_text = text_obj.get("content", "")
+                        break
+
+                # 跳过"对抗检定"发起卡片（只处理"对抗结果"卡片）
+                if "对抗检定" in header_text:
+                    continue
+
+                for module in modules:
+                    if module.get("type") == "section":
+                        text_obj = module.get("text", {})
+                        text_content = text_obj.get("content", "")
+
+                        # 格式1: 普通检定结果
+                        # "✅ **用户名** 的 **技能** 检定\nD100 = **数字** / 数字  【结果】"
+                        match = re.search(
+                            r"[✅❌]\s*\*\*(.+?)\*\*\s*的\s*\*\*.+?\*\*\s*检定.*【(大成功|大失败|极难成功|困难成功|成功|失败)】",
+                            text_content,
+                            re.DOTALL,
+                        )
+                        if match:
+                            results.append((match.group(1), match.group(2)))
+                            continue
+
+                        # 格式2: 对抗检定结果（只在"对抗结果"卡片中解析）
+                        # "**用户名**: D100=数字/数字 【结果】"
+                        if "对抗结果" in header_text:
+                            opposed_matches = re.findall(
+                                r"\*\*(.+?)\*\*:\s*D100=\d+/\d+\s*【(大成功|大失败|极难成功|困难成功|成功|失败)】",
+                                text_content,
+                            )
+                            for name, level in opposed_matches:
+                                results.append((name, level))
+
+            return results if results else None
+        except (json.JSONDecodeError, TypeError, KeyError):
+            return None
+
     def _parse_roll_result(self, content: str) -> Optional[str]:
         """从Bot回复内容中解析骰点结果等级"""
         import re
-        
+
         # 匹配 [大成功], [大失败], [成功], [失败], [困难成功], [极难成功]
         match = re.search(r"\[(大成功|大失败|极难成功|困难成功|成功|失败)\]", content)
         if match:

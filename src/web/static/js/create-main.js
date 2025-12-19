@@ -28,6 +28,11 @@ const CharacterCreator = {
         
         // 显示技能上限提示
         this.showSkillLimitHint();
+        
+        // 初始化缓存管理器
+        if (typeof CacheManager !== 'undefined') {
+            CacheManager.init(token);
+        }
     },
     
     // 显示技能上限提示

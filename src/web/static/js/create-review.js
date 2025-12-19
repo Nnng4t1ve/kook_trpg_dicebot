@@ -71,6 +71,9 @@ const ReviewManager = {
             // 跳过母语技能（基础值为EDU，可能超过上限）
             if (skillName.startsWith('母语')) return;
             
+            // 跳过信用评级（和母语一样不在上限计算里）
+            if (skillName === '信用评级') return;
+            
             // 只检查有实际点数的技能（排除初始值）
             if (total <= 0) return;
             

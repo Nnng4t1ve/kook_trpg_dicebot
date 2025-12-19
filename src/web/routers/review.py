@@ -21,6 +21,22 @@ class ReviewSubmitRequest(BaseModel):
     char_data: dict  # 角色数据
 
 
+class CacheRequest(BaseModel):
+    """缓存请求"""
+    token: str
+    char_name: str
+    char_data: dict  # 角色数据
+    occupation_skills: list = []  # 本职技能列表
+    random_sets: list = []  # 随机属性组
+
+
+class CacheResponse(BaseModel):
+    """缓存响应"""
+    success: bool
+    message: str
+    cached_at: str = None  # ISO格式时间戳
+
+
 class ReviewResponse(BaseModel):
     """审核响应"""
     success: bool
@@ -54,6 +70,85 @@ class CreateCharacterRequest(BaseModel):
 
 # ===== API 端点 =====
 
+@router.post("/cache", response_model=CacheResponse)
+async def cache_character(
+    request: Request,
+    body: CacheRequest,
+):
+    """缓存角色卡数据（自动保存/手动保存）"""
+    from datetime import datetime
+
+    token_service = get_token_service(request)
+    db = get_db(request)
+
+    user_id = token_service.validate(body.token, "create")
+    if not user_id:
+        raise HTTPException(status_code=403, detail="链接已过期，请重新获取")
+
+    if not body.char_name or not body.char_data:
+        raise HTTPException(status_code=400, detail="缺少必要参数")
+
+    # 将token保存到char_data中
+    char_data = body.char_data.copy()
+    char_data["_token"] = body.token
+    char_data["_cached"] = True  # 标记为缓存数据
+
+    # 保存到数据库（不包含图片，approved=False，包含本职技能和随机属性组）
+    await db.save_character_review(
+        char_name=body.char_name,
+        user_id=user_id,
+        image_data=None,
+        char_data=char_data,
+        occupation_skills=body.occupation_skills,
+        random_sets=body.random_sets,
+    )
+
+    cached_at = datetime.now().isoformat()
+    logger.info(
+        f"角色卡缓存: {body.char_name} by {user_id}, 本职技能: {len(body.occupation_skills)}个, 随机组: {len(body.random_sets)}个"
+    )
+    return {
+        "success": True,
+        "message": f"角色卡 {body.char_name} 已缓存",
+        "cached_at": cached_at,
+    }
+
+
+@router.get("/cache/{token}")
+async def get_cached_character(
+    request: Request,
+    token: str,
+):
+    """获取缓存的角色卡数据"""
+    token_service = get_token_service(request)
+    db = get_db(request)
+
+    token_data = token_service.get_data(token)
+    if not token_data or token_data.token_type != "create":
+        raise HTTPException(status_code=403, detail="链接已过期，请重新获取")
+
+    user_id = token_data.user_id
+
+    # 查找该用户的缓存数据
+    reviews = await db.reviews.find_by_user(user_id)
+
+    # 找到最新的未审核缓存
+    for review in reviews:
+        if not review.approved and review.char_data.get("_cached"):
+            return {
+                "success": True,
+                "char_name": review.char_name,
+                "char_data": review.char_data,
+                "occupation_skills": review.occupation_skills or [],
+                "random_sets": review.random_sets or [],
+                "created_at": (
+                    review.created_at.isoformat() if review.created_at else None
+                ),
+            }
+
+    return {"success": False, "message": "没有找到缓存数据"}
+
+
 @router.post("/submit", response_model=ReviewResponse)
 async def submit_review(
     request: Request,
@@ -73,6 +168,7 @@ async def submit_review(
     # 将token保存到char_data中，以便角色创建后使其失效
     char_data = body.char_data.copy()
     char_data["_token"] = body.token
+    char_data["_cached"] = False  # 标记为正式提交
     
     # 保存到数据库
     await db.save_character_review(

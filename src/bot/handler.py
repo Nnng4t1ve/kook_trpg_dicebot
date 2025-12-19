@@ -119,8 +119,18 @@ class MessageHandler:
         
         author_name = author.get("nickname") or author.get("username", "")
         
+        # 检查是否以任意命令前缀开头
+        prefix_used = None
+        for prefix in self.command_prefixes:
+            if content.startswith(prefix):
+                prefix_used = prefix
+                break
+        
+        # 判断是否为指令
+        is_command = prefix_used is not None
+        
         # 记录用户消息到日志（如果在记录范围内）
-        await self._maybe_log_message(target_id, author_id, author_name, content, is_bot=False)
+        await self._maybe_log_message(target_id, author_id, author_name, content, is_bot=False, if_cmd=is_command)
         
         # 检查是否有等待推送的状态
         from .commands.push import is_pending_push, clear_pending_push, build_push_card
@@ -131,13 +141,6 @@ class MessageHandler:
             # 处理推送
             await self._handle_push_message(content, author_id, author_name, target_id, msg_id)
             return
-        
-        # 检查是否以任意命令前缀开头
-        prefix_used = None
-        for prefix in self.command_prefixes:
-            if content.startswith(prefix):
-                prefix_used = prefix
-                break
         
         if not prefix_used:
             return
@@ -181,9 +184,9 @@ class MessageHandler:
                 await self.client.send_message(
                     target_id, result.content, msg_type=msg_type, quote=quote
                 )
-                # 记录Bot响应到日志
+                # 记录Bot响应到日志（Bot响应是指令的结果，标记为指令相关）
                 await self._maybe_log_message(
-                    target_id, "bot", "Bot", result.content, is_bot=True
+                    target_id, "bot", "Bot", result.content, is_bot=True, if_cmd=True
                 )
             else:
                 await self.client.send_direct_message(author_id, result.content, msg_type=msg_type)
@@ -340,6 +343,8 @@ class MessageHandler:
             madness_info=lines[4:] if loss >= 5 or new_san == 0 else None
         )
         await self.client.send_message(target_id, card, msg_type=10)
+        # 记录 SAN Check 结果到日志
+        await self._maybe_log_message(target_id, "bot", "Bot", card, is_bot=True, if_cmd=True)
 
     async def _handle_check_button(
         self, value: dict, user_id: str, target_id: str, user_name: str
@@ -383,7 +388,8 @@ class MessageHandler:
             user_name, skill_name, roll, target, result.level.value, result.is_success
         )
         await self.client.send_message(target_id, card, msg_type=10)
-
+        # 记录检定结果到日志
+        await self._maybe_log_message(target_id, "bot", "Bot", card, is_bot=True, if_cmd=True)
 
     async def _handle_create_character_button(self, user_id: str, value: dict = None):
         """处理创建角色卡按钮点击"""
@@ -549,7 +555,8 @@ class MessageHandler:
             target_target=check.target_target, target_level=target_level_text, winner=winner,
         )
         await self.client.send_message(channel_id, card, msg_type=10)
-
+        # 记录对抗检定结果到日志
+        await self._maybe_log_message(channel_id, "bot", "Bot", card, is_bot=True, if_cmd=True)
 
     async def _handle_damage_button(
         self, value: dict, user_id: str, channel_id: str, user_name: str
@@ -624,6 +631,8 @@ class MessageHandler:
 
         self.check_manager.remove_damage_check(check_id)
         await self.client.send_message(channel_id, card, msg_type=10)
+        # 记录伤害结果到日志
+        await self._maybe_log_message(channel_id, "bot", "Bot", card, is_bot=True, if_cmd=True)
 
         if need_con_check:
             if check.target_type == "npc":
@@ -649,6 +658,8 @@ class MessageHandler:
             target_name=npc.name, roll=roll, con_value=con_value, is_success=is_success, is_npc=True,
         )
         await self.client.send_message(channel_id, card, msg_type=10)
+        # 记录NPC体质检定结果到日志
+        await self._maybe_log_message(channel_id, "bot", "Bot", card, is_bot=True, if_cmd=True)
 
     async def _handle_con_check_button(
         self, value: dict, user_id: str, channel_id: str, user_name: str
@@ -679,7 +690,8 @@ class MessageHandler:
             target_name=char.name, roll=roll, con_value=con_value, is_success=is_success, is_npc=False,
         )
         await self.client.send_message(channel_id, card, msg_type=10)
-
+        # 记录体质检定结果到日志
+        await self._maybe_log_message(channel_id, "bot", "Bot", card, is_bot=True, if_cmd=True)
 
     async def _handle_approve_character_button(
         self, value: dict, user_id: str, channel_id: str, user_name: str
@@ -972,7 +984,7 @@ class MessageHandler:
         user_name: str,
         content: str,
         is_bot: bool = False,
-        roll_result: dict = None,
+        if_cmd: bool = False,
     ):
         """如果频道有活跃日志且用户在记录范围内，则记录消息"""
         from .commands.gamelog import get_active_log, is_user_in_log
@@ -985,15 +997,25 @@ class MessageHandler:
         if not is_bot and not is_user_in_log(channel_id, user_id):
             return
 
+        # 如果是卡片消息（JSON格式），将 Unicode 转义码还原成正常文字
+        log_content = content
+        if content.startswith("[{") or content.startswith("{"):
+            try:
+                # 解析 JSON 再序列化，ensure_ascii=False 会将 \uXXXX 转为正常字符
+                parsed = json.loads(content)
+                log_content = json.dumps(parsed, ensure_ascii=False)
+            except json.JSONDecodeError:
+                pass  # 解析失败则保持原样
+
         # 记录到数据库
         await self.db.add_game_log_entry(
             log_name=log_info["log_name"],
             user_id=user_id,
             user_name=user_name,
-            content=content,
+            content=log_content,
             msg_type="text",
             is_bot=is_bot,
-            roll_result=roll_result,
+            if_cmd=if_cmd,
         )
 
     async def _handle_log_page_button(

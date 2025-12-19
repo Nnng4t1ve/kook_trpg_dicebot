@@ -14,6 +14,8 @@ class CharacterReview:
     char_data: dict
     image_data: Optional[str] = None
     image_url: Optional[str] = None
+    occupation_skills: Optional[List[str]] = None  # 本职技能列表
+    random_sets: Optional[List[dict]] = None  # 随机属性组
     approved: bool = False
     created_at: Optional[datetime] = None
 
@@ -29,13 +31,15 @@ class ReviewRepository(BaseRepository[CharacterReview]):
     - image_data: LONGTEXT
     - image_url: VARCHAR(512)
     - char_data: JSON NOT NULL
+    - occupation_skills: JSON (本职技能列表)
+    - random_sets: JSON (随机属性组)
     - approved: BOOLEAN DEFAULT FALSE
     - created_at: TIMESTAMP
     """
-    
+
     table_name = "character_reviews"
     model_class = CharacterReview
-    
+
     def _row_to_model(self, row: tuple, columns: List[str]) -> CharacterReview:
         """将数据库行转换为 CharacterReview 对象"""
         row_dict = dict(zip(columns, row))
@@ -45,10 +49,14 @@ class ReviewRepository(BaseRepository[CharacterReview]):
             image_data=row_dict.get("image_data"),
             image_url=row_dict.get("image_url"),
             char_data=self._deserialize_json(row_dict.get("char_data", "{}")),
+            occupation_skills=self._deserialize_json(
+                row_dict.get("occupation_skills", "[]")
+            ),
+            random_sets=self._deserialize_json(row_dict.get("random_sets", "[]")),
             approved=bool(row_dict.get("approved", False)),
             created_at=row_dict.get("created_at"),
         )
-    
+
     def _model_to_row(self, entity: CharacterReview) -> Dict[str, Any]:
         """将 CharacterReview 对象转换为数据库行"""
         return {
@@ -57,6 +65,8 @@ class ReviewRepository(BaseRepository[CharacterReview]):
             "image_data": entity.image_data,
             "image_url": entity.image_url,
             "char_data": self._serialize_json(entity.char_data),
+            "occupation_skills": self._serialize_json(entity.occupation_skills or []),
+            "random_sets": self._serialize_json(entity.random_sets or []),
             "approved": entity.approved,
         }
     
@@ -96,12 +106,14 @@ class ReviewRepository(BaseRepository[CharacterReview]):
         """
         sql = """
             INSERT INTO character_reviews 
-            (char_name, user_id, image_data, image_url, char_data, approved) 
-            VALUES (%s, %s, %s, %s, %s, %s) AS new_values
+            (char_name, user_id, image_data, image_url, char_data, occupation_skills, random_sets, approved) 
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s) AS new_values
             ON DUPLICATE KEY UPDATE 
             image_data = new_values.image_data,
             image_url = new_values.image_url,
             char_data = new_values.char_data,
+            occupation_skills = new_values.occupation_skills,
+            random_sets = new_values.random_sets,
             approved = new_values.approved,
             created_at = CURRENT_TIMESTAMP
         """
@@ -113,6 +125,8 @@ class ReviewRepository(BaseRepository[CharacterReview]):
                 review.image_data,
                 review.image_url,
                 self._serialize_json(review.char_data),
+                self._serialize_json(review.occupation_skills or []),
+                self._serialize_json(review.random_sets or []),
                 review.approved,
             ),
         )

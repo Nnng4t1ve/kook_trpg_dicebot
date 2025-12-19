@@ -18,6 +18,7 @@ async def index(request: Request):
 async def create_page(request: Request, token: str):
     """角色卡创建页面"""
     from loguru import logger
+    import time
     
     token_service = get_token_service(request)
     templates = request.app.state.templates
@@ -35,7 +36,12 @@ async def create_page(request: Request, token: str):
     occ_limit = token_data.extra_data.get("occ_limit")
     non_occ_limit = token_data.extra_data.get("non_occ_limit")
     
-    logger.info(f"Token 验证成功: user_id={user_id}, limits={skill_limit}/{occ_limit}/{non_occ_limit}")
+    # 计算token剩余有效时间（秒）
+    expire_seconds = token_service.TOKEN_EXPIRE_SECONDS
+    elapsed = time.time() - token_data.created_at
+    remaining_seconds = max(0, int(expire_seconds - elapsed))
+    
+    logger.info(f"Token 验证成功: user_id={user_id}, limits={skill_limit}/{occ_limit}/{non_occ_limit}, remaining={remaining_seconds}s")
     return templates.TemplateResponse(
         "create.html",
         {
@@ -44,7 +50,8 @@ async def create_page(request: Request, token: str):
             "user_id": user_id,
             "skill_limit": skill_limit,
             "occ_limit": occ_limit,
-            "non_occ_limit": non_occ_limit
+            "non_occ_limit": non_occ_limit,
+            "token_remaining_seconds": remaining_seconds
         }
     )
 

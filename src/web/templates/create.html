@@ -15,6 +15,23 @@
 <body>
     <div class="container">
         <h1>🎲 创建 COC7 角色卡</h1>
+        
+        <!-- 链接有效期和缓存状态 -->
+        <div class="card token-status-card">
+            <div class="token-status-row">
+                <div class="token-expire-info">
+                    <span class="token-icon">⏰</span>
+                    <span>链接剩余有效期: </span>
+                    <strong id="tokenExpireTime">计算中...</strong>
+                </div>
+                <div class="cache-status-info">
+                    <span class="cache-icon">💾</span>
+                    <span id="cacheStatus">未缓存</span>
+                    <button type="button" class="btn-cache" id="manualCacheBtn" title="手动保存">📥 保存</button>
+                </div>
+            </div>
+        </div>
+        
         <form id="charForm">
             <input type="hidden" name="token" value="{{ token }}">
 
@@ -320,6 +337,7 @@
         const SKILL_LIMIT = {{ skill_limit if skill_limit else 'null' }};
         const OCC_LIMIT = {{ occ_limit if occ_limit else 'null' }};
         const NON_OCC_LIMIT = {{ non_occ_limit if non_occ_limit else 'null' }};
+        const TOKEN_REMAINING_SECONDS = {{ token_remaining_seconds if token_remaining_seconds else 0 }};
     </script>
 
     <!-- JavaScript 模块 -->
@@ -331,6 +349,7 @@
     <script src="/static/js/create-form.js"></script>
     <script src="/static/js/create-review.js"></script>
     <script src="/static/js/create-occupation.js"></script>
+    <script src="/static/js/create-cache.js"></script>
     <script src="/static/js/create-main.js"></script>
 
     <!-- 职业查询和本职技能绑定 -->

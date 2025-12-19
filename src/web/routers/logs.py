@@ -1,6 +1,8 @@
 """游戏日志API路由"""
+import json
+
 from fastapi import APIRouter, Depends, HTTPException
-from fastapi.responses import JSONResponse
+from fastapi.responses import Response
 
 from ..dependencies import get_db
 
@@ -29,11 +31,12 @@ async def export_log(log_name: str, db=Depends(get_db)):
         "entries": entries,
     }
 
-    # 返回JSON文件
-    return JSONResponse(
-        content=export_data,
+    # 返回JSON文件，ensure_ascii=False 保留中文字符
+    json_content = json.dumps(export_data, ensure_ascii=False, indent=2)
+    return Response(
+        content=json_content,
+        media_type="application/json; charset=utf-8",
         headers={
             "Content-Disposition": f'attachment; filename="{log_name}.json"',
-            "Content-Type": "application/json; charset=utf-8",
         },
     )

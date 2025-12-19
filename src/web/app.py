@@ -124,6 +124,20 @@ def create_app(
         create_request = CreateApprovedRequest(**body)
         return await create_approved_character(request, create_request)
     
+    @app.post("/api/character/cache")
+    async def cache_character_legacy(request: Request):
+        """缓存角色卡数据（兼容旧路径）"""
+        from .routers.review import CacheRequest, cache_character
+        body = await request.json()
+        cache_request = CacheRequest(**body)
+        return await cache_character(request, cache_request)
+    
+    @app.get("/api/character/cache/{token}")
+    async def get_cached_character_legacy(token: str, request: Request):
+        """获取缓存的角色卡数据（兼容旧路径）"""
+        from .routers.review import get_cached_character
+        return await get_cached_character(request, token)
+    
     # 暴露便捷方法（兼容旧接口）
     def generate_token_with_limits(user_id: str, skill_limit=None, occ_limit=None, non_occ_limit=None):
         return token_service.generate_create_token(user_id, skill_limit, occ_limit, non_occ_limit)

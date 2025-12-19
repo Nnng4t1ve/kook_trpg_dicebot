@@ -1064,7 +1064,7 @@ class CardBuilder:
                     "type": "section",
                     "text": {
                         "type": "kmarkdown",
-                        "content": f"点击下方按钮打开创建页面\n⏰ 链接有效期 10 分钟，仅限本人使用{limit_text}"
+                        "content": f"点击下方按钮打开创建页面\n⏰ 链接有效期 **7 天**，仅限本人使用{limit_text}"
                     }
                 },
                 {
@@ -1636,14 +1636,24 @@ class CardBuilder:
         user_stats = stats.get("user_stats", {})
         total_rolls = stats.get("total_rolls", 0)
 
+        def format_user(user_id: str, user_name: str) -> str:
+            """格式化用户显示，NPC直接显示名字，用户ID用@"""
+            if user_id.startswith("npc:"):
+                # NPC，直接显示名字
+                return f"**{user_name}** (NPC)"
+            else:
+                # 用户ID，用@
+                return f"(met){user_id}(met)"
+
         # 构建用户统计表格
         lines = [f"📊 **总骰点次数**: {total_rolls}", ""]
 
         if user_stats:
             lines.append("**各玩家统计**:")
             for user_id, s in user_stats.items():
+                user_display = format_user(user_id, s["user_name"])
                 lines.append(
-                    f"(met){user_id}(met): "
+                    f"{user_display}: "
                     f"🎲{s['total_rolls']} "
                     f"✅{s['success']} "
                     f"❌{s['failure']} "
