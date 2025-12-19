@@ -12,6 +12,7 @@ class CharacterReview:
     char_name: str
     user_id: str
     char_data: dict
+    token: Optional[str] = None  # 创建链接token
     image_data: Optional[str] = None
     image_url: Optional[str] = None
     occupation_skills: Optional[List[str]] = None  # 本职技能列表
@@ -28,6 +29,7 @@ class ReviewRepository(BaseRepository[CharacterReview]):
     - id: INT AUTO_INCREMENT PRIMARY KEY
     - char_name: VARCHAR(128) NOT NULL UNIQUE
     - user_id: VARCHAR(64) NOT NULL
+    - token: VARCHAR(64) (创建链接token，带索引)
     - image_data: LONGTEXT
     - image_url: VARCHAR(512)
     - char_data: JSON NOT NULL
@@ -46,6 +48,7 @@ class ReviewRepository(BaseRepository[CharacterReview]):
         return CharacterReview(
             char_name=row_dict["char_name"],
             user_id=row_dict["user_id"],
+            token=row_dict.get("token"),
             image_data=row_dict.get("image_data"),
             image_url=row_dict.get("image_url"),
             char_data=self._deserialize_json(row_dict.get("char_data", "{}")),
@@ -62,6 +65,7 @@ class ReviewRepository(BaseRepository[CharacterReview]):
         return {
             "char_name": entity.char_name,
             "user_id": entity.user_id,
+            "token": entity.token,
             "image_data": entity.image_data,
             "image_url": entity.image_url,
             "char_data": self._serialize_json(entity.char_data),
@@ -93,7 +97,19 @@ class ReviewRepository(BaseRepository[CharacterReview]):
             审核记录列表
         """
         return await self.find_many(user_id=user_id)
-    
+
+    async def find_by_token(self, token: str) -> Optional[CharacterReview]:
+        """
+        根据token查询缓存记录（使用索引，高效查询）
+        
+        Args:
+            token: 创建链接的token
+        
+        Returns:
+            审核记录或 None
+        """
+        return await self.find_one(token=token)
+
     async def save(self, review: CharacterReview) -> int:
         """
         保存审核记录（插入或更新）
@@ -106,9 +122,10 @@ class ReviewRepository(BaseRepository[CharacterReview]):
         """
         sql = """
             INSERT INTO character_reviews 
-            (char_name, user_id, image_data, image_url, char_data, occupation_skills, random_sets, approved) 
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s) AS new_values
+            (char_name, user_id, token, image_data, image_url, char_data, occupation_skills, random_sets, approved) 
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s) AS new_values
             ON DUPLICATE KEY UPDATE 
+            token = new_values.token,
             image_data = new_values.image_data,
             image_url = new_values.image_url,
             char_data = new_values.char_data,
@@ -122,6 +139,7 @@ class ReviewRepository(BaseRepository[CharacterReview]):
             (
                 review.char_name,
                 review.user_id,
+                review.token,
                 review.image_data,
                 review.image_url,
                 self._serialize_json(review.char_data),

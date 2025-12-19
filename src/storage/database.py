@@ -210,6 +210,7 @@ class Database:
                         id INT AUTO_INCREMENT PRIMARY KEY,
                         char_name VARCHAR(128) NOT NULL UNIQUE,
                         user_id VARCHAR(64) NOT NULL,
+                        token VARCHAR(64),
                         image_data LONGTEXT,
                         image_url VARCHAR(512),
                         char_data JSON NOT NULL,
@@ -217,9 +218,25 @@ class Database:
                         random_sets JSON,
                         approved BOOLEAN DEFAULT FALSE,
                         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                        INDEX idx_user (user_id)
+                        INDEX idx_user (user_id),
+                        INDEX idx_token (token)
                     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
                 """)
+
+                # 添加 token 列（如果不存在）
+                await cur.execute("""
+                    SELECT COUNT(*) FROM information_schema.COLUMNS 
+                    WHERE TABLE_SCHEMA = DATABASE() 
+                    AND TABLE_NAME = 'character_reviews' 
+                    AND COLUMN_NAME = 'token'
+                """)
+                row = await cur.fetchone()
+                if row[0] == 0:
+                    await cur.execute("""
+                        ALTER TABLE character_reviews 
+                        ADD COLUMN token VARCHAR(64) AFTER user_id,
+                        ADD INDEX idx_token (token)
+                    """)
 
                 # 添加 occupation_skills 列（如果不存在）
                 await cur.execute("""
@@ -500,6 +517,7 @@ class Database:
         user_id: str,
         image_data: str,
         char_data: dict,
+        token: str = None,
         image_url: str = None,
         occupation_skills: list = None,
         random_sets: list = None,
@@ -510,6 +528,7 @@ class Database:
         review = CharacterReview(
             char_name=char_name,
             user_id=user_id,
+            token=token,
             image_data=image_data,
             image_url=image_url,
             char_data=char_data,
@@ -526,6 +545,7 @@ class Database:
             return {
                 "char_name": review.char_name,
                 "user_id": review.user_id,
+                "token": review.token,
                 "image_data": review.image_data,
                 "image_url": review.image_url,
                 "char_data": review.char_data,

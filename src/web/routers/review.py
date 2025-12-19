@@ -88,17 +88,17 @@ async def cache_character(
     if not body.char_name or not body.char_data:
         raise HTTPException(status_code=400, detail="缺少必要参数")
 
-    # 将token保存到char_data中
+    # 标记为缓存数据
     char_data = body.char_data.copy()
-    char_data["_token"] = body.token
-    char_data["_cached"] = True  # 标记为缓存数据
+    char_data["_cached"] = True
 
-    # 保存到数据库（不包含图片，approved=False，包含本职技能和随机属性组）
+    # 保存到数据库（token单独存列，不包含图片，approved=False）
     await db.save_character_review(
         char_name=body.char_name,
         user_id=user_id,
         image_data=None,
         char_data=char_data,
+        token=body.token,
         occupation_skills=body.occupation_skills,
         random_sets=body.random_sets,
     )
@@ -119,7 +119,7 @@ async def get_cached_character(
     request: Request,
     token: str,
 ):
-    """获取缓存的角色卡数据"""
+    """获取缓存的角色卡数据（根据token查找）"""
     token_service = get_token_service(request)
     db = get_db(request)
 
@@ -127,24 +127,20 @@ async def get_cached_character(
     if not token_data or token_data.token_type != "create":
         raise HTTPException(status_code=403, detail="链接已过期，请重新获取")
 
-    user_id = token_data.user_id
+    # 根据token查找缓存数据
+    review = await db.reviews.find_by_token(token)
 
-    # 查找该用户的缓存数据
-    reviews = await db.reviews.find_by_user(user_id)
-
-    # 找到最新的未审核缓存
-    for review in reviews:
-        if not review.approved and review.char_data.get("_cached"):
-            return {
-                "success": True,
-                "char_name": review.char_name,
-                "char_data": review.char_data,
-                "occupation_skills": review.occupation_skills or [],
-                "random_sets": review.random_sets or [],
-                "created_at": (
-                    review.created_at.isoformat() if review.created_at else None
-                ),
-            }
+    if review and not review.approved and review.char_data.get("_cached"):
+        return {
+            "success": True,
+            "char_name": review.char_name,
+            "char_data": review.char_data,
+            "occupation_skills": review.occupation_skills or [],
+            "random_sets": review.random_sets or [],
+            "created_at": (
+                review.created_at.isoformat() if review.created_at else None
+            ),
+        }
 
     return {"success": False, "message": "没有找到缓存数据"}
 
@@ -165,17 +161,17 @@ async def submit_review(
     if not body.char_name or not body.image_data or not body.char_data:
         raise HTTPException(status_code=400, detail="缺少必要参数")
     
-    # 将token保存到char_data中，以便角色创建后使其失效
+    # 标记为正式提交
     char_data = body.char_data.copy()
-    char_data["_token"] = body.token
-    char_data["_cached"] = False  # 标记为正式提交
-    
-    # 保存到数据库
+    char_data["_cached"] = False
+
+    # 保存到数据库（token单独存列）
     await db.save_character_review(
         char_name=body.char_name,
         user_id=user_id,
         image_data=body.image_data,
         char_data=char_data,
+        token=body.token,
     )
     
     logger.info(f"角色卡审核提交: {body.char_name} by {user_id}")
@@ -253,7 +249,7 @@ async def create_character(
     
     # 创建成功后使 token 失效（当前token和保存的token都失效）
     token_service.invalidate(body.token)
-    saved_token = char_data.get("_token")
+    saved_token = review.get("token")
     if saved_token and saved_token != body.token:
         token_service.invalidate(saved_token)
     
@@ -333,14 +329,14 @@ async def approve_and_create_character(
     await char_manager.add(char)
     
     # 使原token失效
-    saved_token = char_data.get("_token")
+    saved_token = review.get("token")
     if saved_token:
         token_service = get_token_service(request)
         token_service.invalidate(saved_token)
-    
+
     # 删除审核数据
     await db.delete_character_review(body.char_name)
-    
+
     logger.info(f"审核通过，角色卡创建成功: {body.char_name} by {user_id}")
     return {"success": True, "message": f"角色 {body.char_name} 审核通过并创建成功！"}
 
@@ -398,15 +394,15 @@ async def create_approved_character(
     )
     
     await char_manager.add(char)
-    
+
     # 使原token失效
-    saved_token = char_data.get("_token")
+    saved_token = review.get("token")
     if saved_token:
         token_service = get_token_service(request)
         token_service.invalidate(saved_token)
-    
+
     # 删除审核数据
     await db.delete_character_review(body.char_name)
-    
+
     logger.info(f"角色卡创建成功: {body.char_name} by {body.user_id}")
     return {"success": True, "message": f"角色 {body.char_name} 创建成功！"}
