@@ -1,4 +1,5 @@
 """NPC 命令"""
+import json
 import re
 from loguru import logger
 from .base import BaseCommand, CommandResult
@@ -6,7 +7,7 @@ from .registry import command
 from ..card_builder import CardBuilder
 from ...dice import DiceRoller
 from ...dice.rules import get_rule, SuccessLevel
-from ...character import NPC_TEMPLATES
+from ...storage.repositories import NPCTemplate
 
 
 @command("npc")
@@ -22,14 +23,20 @@ class NPCCommand(BaseCommand):
         if not args:
             return CommandResult.text(
                 "**NPC 命令**\n"
-                "`.npc create <名称> [模板]` - 创建 NPC (模板: 1=普通, 2=困难, 3=极难)\n"
+                "`.npc create <名称> [模板]` - 创建 NPC\n"
                 "`.npc <名称> ra <技能>` - NPC 技能检定\n"
                 "`.npc <名称> rha <技能>` - NPC 暗骰检定（结果私聊发送）\n"
                 "`.npc <名称> gun <技能> [r奖励骰] t<波数>` - NPC 全自动枪械连发\n"
                 "`.npc <名称> ad @用户 <技能1> [技能2] [r/p]` - NPC 对抗检定\n"
                 "`.npc list` - 列出当前频道 NPC\n"
                 "`.npc del <名称>` - 删除 NPC\n"
-                "`.npc <名称>` - 查看 NPC 属性"
+                "`.npc <名称>` - 查看 NPC 属性\n"
+                "---\n"
+                "**模板管理**\n"
+                "`.npc add <模板名> <JSON>` - 添加自定义模板\n"
+                "`.npc add help` - 查看模板 JSON 格式示例\n"
+                "`.npc show <模板名>` - 查看模板详情\n"
+                "`.npc templates` - 列出所有模板"
             )
         
         parts = args.split(maxsplit=1)
@@ -44,6 +51,15 @@ class NPCCommand(BaseCommand):
         
         if sub_cmd == "del":
             return await self._npc_delete(sub_args)
+        
+        if sub_cmd == "add":
+            return await self._template_add(sub_args)
+        
+        if sub_cmd == "show":
+            return await self._template_show(sub_args)
+        
+        if sub_cmd == "templates":
+            return await self._template_list()
         
         # 其他情况: .npc <name> [子命令]
         npc_name = sub_cmd
@@ -85,33 +101,33 @@ class NPCCommand(BaseCommand):
         """创建 NPC"""
         parts = args.split()
         if not parts:
-            return CommandResult.text("格式: `.npc create <名称> [模板]`\n模板: 1=普通, 2=困难, 3=极难")
+            templates = await self.ctx.db.npc_templates.list_all()
+            template_list = ", ".join(t.name for t in templates)
+            return CommandResult.text(f"格式: `.npc create <名称> [模板名]`\n可用模板: {template_list}")
         
         name = parts[0]
-        template_id = 1
-        if len(parts) > 1:
-            try:
-                template_id = int(parts[1])
-            except ValueError:
-                return CommandResult.text("模板必须是数字 (1/2/3)")
+        template_name = parts[1] if len(parts) > 1 else "普通"
         
-        if template_id not in NPC_TEMPLATES:
-            return CommandResult.text(f"无效模板: {template_id}\n可用: 1=普通, 2=困难, 3=极难")
+        # 从数据库获取模板
+        template = await self.ctx.db.npc_templates.find_by_name(template_name)
+        if not template:
+            templates = await self.ctx.db.npc_templates.list_all()
+            template_list = ", ".join(t.name for t in templates)
+            return CommandResult.text(f"未找到模板: {template_name}\n可用模板: {template_list}")
         
         existing = await self.ctx.npc_manager.get(self.ctx.channel_id, name)
         if existing:
             return CommandResult.text(f"NPC **{name}** 已存在，请先删除或使用其他名称")
         
-        npc = await self.ctx.npc_manager.create(self.ctx.channel_id, name, template_id)
+        npc = await self.ctx.npc_manager.create_from_template(self.ctx.channel_id, name, template)
         if not npc:
             return CommandResult.text("创建失败")
         
-        template = NPC_TEMPLATES[template_id]
         attrs = " | ".join(f"{k}:{v}" for k, v in npc.attributes.items())
         skills = " | ".join(f"{k}:{v}" for k, v in npc.skills.items())
         
         return CommandResult.text(
-            f"✅ NPC **{name}** 创建成功 (模板: {template['name']})\n"
+            f"✅ NPC **{name}** 创建成功 (模板: {template.name})\n"
             f"属性: {attrs}\n"
             f"技能: {skills}"
         )
@@ -739,3 +755,125 @@ class NPCCommand(BaseCommand):
         else:
             result = "抵消"
         return f"({calc} → {result})"
+
+    # ===== 模板管理 =====
+    
+    async def _template_add(self, args: str) -> CommandResult:
+        """添加 NPC 模板"""
+        args = args.strip()
+        
+        if not args or args.lower() == "help":
+            return CommandResult.text(
+                "**添加 NPC 模板**\n"
+                "格式: `.npc add <模板名> <JSON>`\n\n"
+                "**JSON 格式示例:**\n"
+                "```json\n"
+                '{"attr_min": 50, "attr_max": 70, "skill_min": 50, "skill_max": 60}\n'
+                "```\n\n"
+                "**完整示例:**\n"
+                "```json\n"
+                '{"attr_min": 60, "attr_max": 80, "skill_min": 55, "skill_max": 70, '
+                '"description": "精英敌人", '
+                '"custom_skills": ["射击", "格斗", "闪避", "侦查"]}\n'
+                "```\n\n"
+                "**可选字段:**\n"
+                "• `attr_min/attr_max` - 属性范围 (默认 40-60)\n"
+                "• `skill_min/skill_max` - 技能范围 (默认 40-50)\n"
+                "• `description` - 模板描述\n"
+                "• `custom_attributes` - 自定义属性列表\n"
+                "• `custom_skills` - 自定义技能列表"
+            )
+        
+        # 解析模板名和 JSON
+        parts = args.split(maxsplit=1)
+        if len(parts) < 2:
+            return CommandResult.text("格式: `.npc add <模板名> <JSON>`\n使用 `.npc add help` 查看示例")
+        
+        template_name = parts[0]
+        json_str = parts[1].strip()
+        
+        # 处理 KOOK 消息中的转义字符
+        json_str = json_str.replace("\\[", "[").replace("\\]", "]")
+        
+        # 检查是否为内置模板
+        existing = await self.ctx.db.npc_templates.find_by_name(template_name)
+        if existing and existing.is_builtin:
+            return CommandResult.text(f"❌ 无法覆盖内置模板: {template_name}")
+        
+        # 解析 JSON
+        try:
+            data = json.loads(json_str)
+        except json.JSONDecodeError as e:
+            return CommandResult.text(f"❌ JSON 格式错误: {e}")
+        
+        # 验证字段
+        attr_min = data.get("attr_min", 40)
+        attr_max = data.get("attr_max", 60)
+        skill_min = data.get("skill_min", 40)
+        skill_max = data.get("skill_max", 50)
+        
+        if not (1 <= attr_min <= attr_max <= 200):
+            return CommandResult.text("❌ 属性范围无效 (需要 1 <= attr_min <= attr_max <= 200)")
+        if not (1 <= skill_min <= skill_max <= 200):
+            return CommandResult.text("❌ 技能范围无效 (需要 1 <= skill_min <= skill_max <= 200)")
+        
+        # 创建模板
+        template = NPCTemplate(
+            name=template_name,
+            attr_min=attr_min,
+            attr_max=attr_max,
+            skill_min=skill_min,
+            skill_max=skill_max,
+            description=data.get("description", ""),
+            custom_attributes=data.get("custom_attributes", []),
+            custom_skills=data.get("custom_skills", []),
+            is_builtin=False,
+        )
+        
+        await self.ctx.db.npc_templates.save(template)
+        
+        action = "更新" if existing else "添加"
+        return CommandResult.text(
+            f"✅ 模板 **{template_name}** {action}成功\n"
+            f"属性范围: {attr_min}-{attr_max}\n"
+            f"技能范围: {skill_min}-{skill_max}"
+        )
+    
+    async def _template_show(self, args: str) -> CommandResult:
+        """查看模板详情"""
+        template_name = args.strip()
+        if not template_name:
+            return CommandResult.text("格式: `.npc show <模板名>`")
+        
+        template = await self.ctx.db.npc_templates.find_by_name(template_name)
+        if not template:
+            return CommandResult.text(f"未找到模板: {template_name}")
+        
+        lines = [f"**模板: {template.name}**"]
+        if template.is_builtin:
+            lines.append("(内置模板)")
+        if template.description:
+            lines.append(f"描述: {template.description}")
+        lines.append(f"属性范围: {template.attr_min}-{template.attr_max}")
+        lines.append(f"技能范围: {template.skill_min}-{template.skill_max}")
+        
+        if template.custom_attributes:
+            lines.append(f"自定义属性: {', '.join(template.custom_attributes)}")
+        if template.custom_skills:
+            lines.append(f"自定义技能: {', '.join(template.custom_skills)}")
+        
+        return CommandResult.text("\n".join(lines))
+    
+    async def _template_list(self) -> CommandResult:
+        """列出所有模板"""
+        templates = await self.ctx.db.npc_templates.list_all()
+        if not templates:
+            return CommandResult.text("暂无模板")
+        
+        lines = ["**NPC 模板列表**"]
+        for t in templates:
+            builtin_mark = " (内置)" if t.is_builtin else ""
+            lines.append(f"• **{t.name}**{builtin_mark}: 属性 {t.attr_min}-{t.attr_max}, 技能 {t.skill_min}-{t.skill_max}")
+        
+        lines.append("\n使用 `.npc show <模板名>` 查看详情")
+        return CommandResult.text("\n".join(lines))

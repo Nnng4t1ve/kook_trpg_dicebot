@@ -8,6 +8,8 @@ from ..character.models import Character
 from .repositories import (
     CharacterRepository,
     NPCRepository,
+    NPCTemplate,
+    NPCTemplateRepository,
     NotebookEntryRepository,
     NotebookRepository,
     ReviewRepository,
@@ -45,6 +47,7 @@ class Database:
         # 仓库实例（延迟初始化）
         self._character_repo: Optional[CharacterRepository] = None
         self._npc_repo: Optional[NPCRepository] = None
+        self._npc_template_repo: Optional[NPCTemplateRepository] = None
         self._user_settings_repo: Optional[UserSettingsRepository] = None
         self._review_repo: Optional[ReviewRepository] = None
         self._notebook_repo: Optional[NotebookRepository] = None
@@ -109,6 +112,7 @@ class Database:
             # 清理仓库实例
             self._character_repo = None
             self._npc_repo = None
+            self._npc_template_repo = None
             self._user_settings_repo = None
             self._review_repo = None
             self._notebook_repo = None
@@ -136,6 +140,13 @@ class Database:
         if not self._npc_repo:
             self._npc_repo = NPCRepository(self.pool)
         return self._npc_repo
+    
+    @property
+    def npc_templates(self) -> NPCTemplateRepository:
+        """获取 NPC 模板仓库"""
+        if not self._npc_template_repo:
+            self._npc_template_repo = NPCTemplateRepository(self.pool)
+        return self._npc_template_repo
     
     @property
     def user_settings(self) -> UserSettingsRepository:
@@ -203,6 +214,31 @@ class Database:
                         UNIQUE KEY uk_channel_name (channel_id, name),
                         INDEX idx_channel (channel_id)
                     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+                """)
+
+                # NPC 模板表
+                await cur.execute("""
+                    CREATE TABLE IF NOT EXISTS npc_templates (
+                        name VARCHAR(64) PRIMARY KEY,
+                        attr_min INT DEFAULT 40,
+                        attr_max INT DEFAULT 60,
+                        skill_min INT DEFAULT 40,
+                        skill_max INT DEFAULT 50,
+                        description VARCHAR(256) DEFAULT '',
+                        custom_attributes JSON,
+                        custom_skills JSON,
+                        is_builtin BOOLEAN DEFAULT FALSE,
+                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+                """)
+
+                # 初始化内置模板
+                await cur.execute("""
+                    INSERT IGNORE INTO npc_templates (name, attr_min, attr_max, skill_min, skill_max, description, is_builtin)
+                    VALUES 
+                        ('普通', 40, 60, 40, 50, '普通难度 NPC，属性 40-60，技能 40-50', TRUE),
+                        ('困难', 50, 70, 50, 60, '困难难度 NPC，属性 50-70，技能 50-60', TRUE),
+                        ('极难', 60, 80, 60, 70, '极难难度 NPC，属性 60-80，技能 60-70', TRUE)
                 """)
 
                 await cur.execute("""

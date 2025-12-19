@@ -1,11 +1,14 @@
 """NPC 角色管理"""
 import random
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, TYPE_CHECKING
 from .models import Character
 
+if TYPE_CHECKING:
+    from ..storage.repositories import NPCTemplate
 
-# NPC 模板配置
+
+# NPC 模板配置（保留用于兼容旧代码）
 NPC_TEMPLATES = {
     1: {
         "name": "普通",
@@ -42,9 +45,89 @@ def _round_to_5(value: int) -> int:
     return round(value / 5) * 5
 
 
+def _calc_derived_stats(attributes: dict) -> tuple:
+    """计算派生属性"""
+    hp = (attributes["CON"] + attributes["SIZ"]) // 10
+    mp = attributes["POW"] // 5
+    san = attributes["POW"]
+    
+    str_siz = attributes["STR"] + attributes["SIZ"]
+    if str_siz <= 64:
+        build, db = -2, "-2"
+    elif str_siz <= 84:
+        build, db = -1, "-1"
+    elif str_siz <= 124:
+        build, db = 0, "0"
+    elif str_siz <= 164:
+        build, db = 1, "+1D4"
+    elif str_siz <= 204:
+        build, db = 2, "+1D6"
+    else:
+        build, db = 3, "+2D6"
+    
+    return hp, mp, san, build, db
+
+
+def generate_npc_from_template(
+    name: str,
+    template: "NPCTemplate",
+    user_id: str = "npc"
+) -> Character:
+    """
+    根据数据库模板生成 NPC 角色
+    
+    Args:
+        name: NPC 名称
+        template: NPCTemplate 对象
+        user_id: 所属用户 ID
+    
+    Returns:
+        生成的 Character 对象
+    """
+    # 使用自定义属性列表或默认列表
+    attr_list = template.custom_attributes if template.custom_attributes else BASE_ATTRIBUTES
+    skill_list = template.custom_skills if template.custom_skills else COMBAT_SKILLS
+    
+    # 生成基础属性 (5的倍数)
+    attributes = {}
+    for attr in attr_list:
+        raw_value = random.randint(template.attr_min, template.attr_max)
+        attributes[attr] = _round_to_5(raw_value)
+    
+    # 确保基础属性存在（用于计算派生属性）
+    for attr in BASE_ATTRIBUTES:
+        if attr not in attributes:
+            raw_value = random.randint(template.attr_min, template.attr_max)
+            attributes[attr] = _round_to_5(raw_value)
+    
+    # 生成技能
+    skills = {}
+    for skill in skill_list:
+        raw_value = random.randint(template.skill_min, template.skill_max)
+        skills[skill] = _round_to_5(raw_value)
+    
+    hp, mp, san, build, db = _calc_derived_stats(attributes)
+
+    return Character(
+        name=name,
+        user_id=user_id,
+        attributes=attributes,
+        skills=skills,
+        hp=hp,
+        max_hp=hp,
+        mp=mp,
+        max_mp=mp,
+        san=san,
+        max_san=99,
+        luck=random.randint(15, 90),
+        build=build,
+        db=db,
+    )
+
+
 def generate_npc(name: str, template_id: int = 1, user_id: str = "npc") -> Optional[Character]:
     """
-    根据模板生成 NPC 角色
+    根据模板 ID 生成 NPC 角色（兼容旧接口）
     
     Args:
         name: NPC 名称
@@ -70,31 +153,7 @@ def generate_npc(name: str, template_id: int = 1, user_id: str = "npc") -> Optio
         raw_value = random.randint(template["skill_min"], template["skill_max"])
         skills[skill] = _round_to_5(raw_value)
     
-    # 计算派生属性
-    hp = (attributes["CON"] + attributes["SIZ"]) // 10
-    mp = attributes["POW"] // 5
-    san = attributes["POW"]
-
-    # 计算体格和伤害加值 (基于 STR + SIZ)
-    str_siz = attributes["STR"] + attributes["SIZ"]
-    if str_siz <= 64:
-        build = -2
-        db = "-2"
-    elif str_siz <= 84:
-        build = -1
-        db = "-1"
-    elif str_siz <= 124:
-        build = 0
-        db = "0"
-    elif str_siz <= 164:
-        build = 1
-        db = "+1D4"
-    elif str_siz <= 204:
-        build = 2
-        db = "+1D6"
-    else:
-        build = 3
-        db = "+2D6"
+    hp, mp, san, build, db = _calc_derived_stats(attributes)
 
     return Character(
         name=name,
@@ -122,10 +181,18 @@ class NPCManager:
     async def create(
         self, channel_id: str, name: str, template_id: int = 1
     ) -> Optional[Character]:
-        """创建 NPC"""
+        """创建 NPC（兼容旧接口）"""
         npc = generate_npc(name, template_id, user_id=f"npc:{channel_id}")
         if npc:
             await self.db.save_npc(channel_id, npc, template_id)
+        return npc
+
+    async def create_from_template(
+        self, channel_id: str, name: str, template: "NPCTemplate"
+    ) -> Character:
+        """根据数据库模板创建 NPC"""
+        npc = generate_npc_from_template(name, template, user_id=f"npc:{channel_id}")
+        await self.db.save_npc(channel_id, npc, 0)  # template_id=0 表示自定义模板
         return npc
 
     async def get(self, channel_id: str, name: str) -> Optional[Character]:
