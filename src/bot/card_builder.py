@@ -1006,7 +1006,7 @@ class CardBuilder:
         if approved:
             theme = "success"
             title = f"✅ 角色卡 {char_name} 审核通过"
-            content = f"**{reviewer_name}** 已通过审核\n(met){initiator_id}(met) 现在可以在网页上点击「创建角色卡」按钮完成创建"
+            content = f"**{reviewer_name}** 已通过审核\n(met){initiator_id}(met) 角色卡已自动创建并切换为当前角色"
         else:
             theme = "danger"
             title = f"❌ 角色卡 {char_name} 审核未通过"

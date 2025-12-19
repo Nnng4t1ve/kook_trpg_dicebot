@@ -60,13 +60,13 @@ const CacheManager = {
         await this.saveToServer(true);
     },
     
-    // 获取本职技能列表
+    // 获取本职技能列表（使用行 ID，确保同名技能能正确区分）
     getOccupationSkills() {
         const occupationSkills = [];
         document.querySelectorAll('.skill-row.occupation-skill').forEach(row => {
-            const skillName = row.dataset.skill;
-            if (skillName) {
-                occupationSkills.push(skillName);
+            const rowId = row.id;  // 使用行 ID
+            if (rowId) {
+                occupationSkills.push(rowId);
             }
         });
         return occupationSkills;
@@ -176,8 +176,15 @@ const CacheManager = {
                 // 询问用户是否恢复
                 const charName = result.char_name || '未命名';
                 const createdAt = result.created_at ? new Date(result.created_at).toLocaleString() : '未知时间';
+                const status = result.status || 0;
                 
-                if (confirm(`发现缓存的角色卡数据:\n角色名: ${charName}\n保存时间: ${createdAt}\n\n是否恢复?`)) {
+                // 根据状态显示不同提示
+                let statusText = '';
+                if (status === 1) {
+                    statusText = '\n状态: 已提交待审核';
+                }
+                
+                if (confirm(`发现缓存的角色卡数据:\n角色名: ${charName}\n保存时间: ${createdAt}${statusText}\n\n是否恢复?`)) {
                     this.restoreFormData(result.char_data);
                     // 保存本职技能列表，等技能加载完成后恢复
                     if (result.occupation_skills && result.occupation_skills.length > 0) {
@@ -189,12 +196,34 @@ const CacheManager = {
                     }
                     this.lastSaveTime = new Date(result.created_at);
                     this.updateCacheStatus();
-                    showToast('已恢复缓存数据', 'success');
+                    
+                    // 如果已提交审核，停止自动保存
+                    if (status === 1) {
+                        this.stopAutoSave();
+                        this.updateStatusForSubmitted();
+                        showToast('已恢复数据（已提交审核，自动保存已停止）', 'success');
+                    } else {
+                        showToast('已恢复缓存数据', 'success');
+                    }
                 }
             }
         } catch (err) {
             // 忽略加载错误
             console.log('加载缓存失败:', err);
+        }
+    },
+    
+    // 更新已提交状态的显示
+    updateStatusForSubmitted() {
+        const statusEl = document.getElementById('cacheStatus');
+        if (statusEl) {
+            statusEl.textContent = '已提交审核';
+            statusEl.className = 'submitted';
+        }
+        const btnEl = document.getElementById('manualCacheBtn');
+        if (btnEl) {
+            btnEl.disabled = true;
+            btnEl.title = '已提交审核，无法保存';
         }
     },
     
@@ -286,18 +315,55 @@ const CacheManager = {
         delete this._pendingSkillsDetailed;
         
         document.querySelectorAll('.skill-row').forEach(row => {
-            const skillName = row.dataset.skill;
+            const rowId = row.id;  // 使用行 ID（如 skill_0, skill_1）
+            const skillName = row.dataset.skill;  // 原始技能名（用于兼容旧数据）
             
-            // 优先使用详细数据（包含职业点和兴趣点分配）
-            if (skillsDetailed[skillName]) {
-                const { job, hobby } = skillsDetailed[skillName];
+            // 优先使用详细数据（使用行 ID 匹配）
+            if (skillsDetailed[rowId]) {
+                const { job, hobby, customName, customBase } = skillsDetailed[rowId];
+                
+                // 恢复自定义名称
+                if (customName) {
+                    const customNameInput = row.querySelector('.custom-name');
+                    if (customNameInput) {
+                        customNameInput.value = customName;
+                    }
+                }
+                
+                // 恢复自定义基础值
+                if (customBase !== undefined) {
+                    const customBaseInput = row.querySelector('.custom-base');
+                    if (customBaseInput) {
+                        customBaseInput.value = customBase;
+                    }
+                }
+                
+                // 恢复职业点和兴趣点
+                const jobEl = row.querySelector('.job');
+                const hobbyEl = row.querySelector('.hobby');
+                if (jobEl) jobEl.value = job || 0;
+                if (hobbyEl) hobbyEl.value = hobby || 0;
+                SkillManager.updateRowTotal(row);
+            } else if (skillsDetailed[skillName]) {
+                // 兼容旧数据格式（使用技能名作为 key）
+                const { job, hobby, customName, customBase } = skillsDetailed[skillName];
+                
+                if (customName) {
+                    const customNameInput = row.querySelector('.custom-name');
+                    if (customNameInput) customNameInput.value = customName;
+                }
+                if (customBase !== undefined) {
+                    const customBaseInput = row.querySelector('.custom-base');
+                    if (customBaseInput) customBaseInput.value = customBase;
+                }
+                
                 const jobEl = row.querySelector('.job');
                 const hobbyEl = row.querySelector('.hobby');
                 if (jobEl) jobEl.value = job || 0;
                 if (hobbyEl) hobbyEl.value = hobby || 0;
                 SkillManager.updateRowTotal(row);
             } else if (skills[skillName] !== undefined) {
-                // 兼容旧数据：只有总值，全部放到职业点
+                // 兼容更旧的数据：只有总值，全部放到职业点
                 const total = skills[skillName];
                 const baseEl = row.querySelector('.base');
                 const base = baseEl.tagName === 'INPUT'
@@ -329,8 +395,10 @@ const CacheManager = {
         delete this._pendingOccupationSkills;
         
         document.querySelectorAll('.skill-row').forEach(row => {
+            const rowId = row.id;
             const skillName = row.dataset.skill;
-            if (occupationSkills.includes(skillName)) {
+            // 优先使用行 ID 匹配，兼容旧数据使用技能名匹配
+            if (occupationSkills.includes(rowId) || occupationSkills.includes(skillName)) {
                 const nameCell = row.querySelector('.skill-name');
                 if (nameCell && !row.classList.contains('occupation-skill')) {
                     row.classList.add('occupation-skill');

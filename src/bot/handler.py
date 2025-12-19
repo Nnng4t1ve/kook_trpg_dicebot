@@ -714,13 +714,59 @@ class MessageHandler:
             await self.client.send_message(channel_id, f"(met){user_id}(met) 该角色卡审核已处理或不存在", msg_type=9)
             return
 
-        # approved 默认是 False，只有 True 才表示已审核通过
-        if review.get("approved") is True:
+        # 只有 status=1（已提交待审核）才能操作
+        if review.get("status") != 1:
             await self.client.send_message(channel_id, f"(met){user_id}(met) 该角色卡已经审核过了", msg_type=9)
             return
 
-        # 标记审核通过
-        await self.db.set_review_approved(char_name, True)
+        # 自动创建角色
+        char_data = review["char_data"]
+        owner_id = review["user_id"]
+        
+        # 从 inventory 提取物品列表
+        items = []
+        for inv in char_data.get("inventory", []):
+            if inv.get("item"):
+                items.append(inv["item"])
+            if inv.get("backpack"):
+                items.append(inv["backpack"])
+        
+        weapons = char_data.get("weapons", [])
+        
+        from ..character import Character
+        char = Character(
+            name=char_data["name"],
+            user_id=owner_id,
+            attributes=char_data["attributes"],
+            skills=char_data["skills"],
+            hp=char_data["hp"],
+            max_hp=char_data["hp"],
+            mp=char_data["mp"],
+            max_mp=char_data["mp"],
+            san=char_data["san"],
+            max_san=99,
+            luck=char_data["attributes"].get("LUK", 50),
+            mov=char_data.get("mov", 8),
+            build=char_data.get("build", 0),
+            db=char_data.get("db", "0"),
+            items=items,
+            weapons=weapons,
+            image_url=review.get("image_url"),
+        )
+        
+        await self.char_manager.add(char)
+        
+        # 自动切换到新创建的角色
+        await self.char_manager.set_active(owner_id, char_data["name"])
+        
+        # 使原 token 失效
+        saved_token = review.get("token")
+        if saved_token and self.web_app:
+            self.web_app.state.token_service.invalidate(saved_token)
+            logger.info(f"Token已失效(人工审核): {saved_token[:8]}...")
+
+        # 删除审核数据
+        await self.db.delete_character_review(char_name)
 
         # 发送审核结果到频道（@提交者）
         card = CardBuilder.build_review_result_card(
@@ -728,7 +774,7 @@ class MessageHandler:
         )
         await self.client.send_message(channel_id, card, msg_type=10)
         
-        logger.info(f"角色卡审核通过: {char_name} by {user_name}")
+        logger.info(f"角色卡审核通过并创建: {char_name} by {user_name}, owner={owner_id}")
 
     async def _handle_reject_character_button(
         self, value: dict, user_id: str, channel_id: str, user_name: str
@@ -751,14 +797,19 @@ class MessageHandler:
             await self.client.send_message(channel_id, f"(met){user_id}(met) 该角色卡审核已处理或不存在", msg_type=9)
             return
 
-        # 删除审核记录（拒绝时直接删除）
-        await self.db.delete_character_review(char_name)
+        # 只有 status=1（已提交待审核）才能操作
+        if review.get("status") != 1:
+            await self.client.send_message(channel_id, f"(met){user_id}(met) 该角色卡已经审核过了", msg_type=9)
+            return
+
+        # 拒绝时设置状态为草稿(status=0)，允许用户修改后重新提交
+        await self.db.set_review_status(char_name, 0)
 
         card = CardBuilder.build_review_result_card(
             char_name=char_name, approved=False, reviewer_name=user_name, initiator_id=initiator_id,
         )
         await self.client.send_message(channel_id, card, msg_type=10)
-        logger.info(f"角色卡审核拒绝: {char_name} by {user_name}")
+        logger.info(f"角色卡审核拒绝: {char_name} by {user_name}，已设为草稿状态")
 
     def _calc_san_loss(self, expr: str) -> int | None:
         """计算 SAN 损失值"""

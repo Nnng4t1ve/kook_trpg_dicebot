@@ -218,8 +218,12 @@ class KookClient:
             data=form
         ) as resp:
             data = await resp.json()
+            logger.debug(f"上传文件响应: status={resp.status}, data={data}, file_size={len(file_data)}")
             if data.get("code") == 0:
-                return data.get("data", {}).get("url")
+                url = data.get("data", {}).get("url")
+                if url:
+                    logger.info(f"文件上传成功: {url}, 大小: {len(file_data)} bytes")
+                return url
             logger.error(f"上传文件失败: {data}")
             return None
 
@@ -242,6 +246,28 @@ class KookClient:
             if data.get("code") == 0:
                 return True
             logger.error(f"删除消息失败: {data}")
+            return False
+
+    async def update_message(self, msg_id: str, content: str) -> bool:
+        """
+        更新频道消息
+        
+        Args:
+            msg_id: 消息 ID
+            content: 新的消息内容
+        
+        Returns:
+            是否更新成功
+        """
+        async with self._session.post(
+            f"{self.api_base}/message/update",
+            headers=self.headers,
+            json={"msg_id": msg_id, "content": content}
+        ) as resp:
+            data = await resp.json()
+            if data.get("code") == 0:
+                return True
+            logger.error(f"更新消息失败: {data}")
             return False
 
     async def pin_message(self, msg_id: str, channel_id: str) -> bool:

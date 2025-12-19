@@ -196,6 +196,16 @@ const OccupationManager = {
                 <button type="button" class="floating-close" onclick="OccupationManager.hideFloatingPanel()">✕</button>
             </div>
             <div class="floating-content"></div>
+            <div class="floating-points">
+                <div class="floating-points-item job">
+                    <span class="label">职业点</span>
+                    <span class="value" id="floatingJobPoints">--</span>
+                </div>
+                <div class="floating-points-item hobby">
+                    <span class="label">兴趣点</span>
+                    <span class="value" id="floatingHobbyPoints">--</span>
+                </div>
+            </div>
         `;
         panel.style.display = 'none';
         document.body.appendChild(panel);
@@ -253,7 +263,43 @@ const OccupationManager = {
             `;
         }
         
+        this.updateFloatingPoints();
         this.floatingPanel.style.display = 'block';
+    },
+
+    // 更新浮动面板的点数显示
+    updateFloatingPoints() {
+        const jobEl = document.getElementById('floatingJobPoints');
+        const hobbyEl = document.getElementById('floatingHobbyPoints');
+        
+        if (!jobEl || !hobbyEl) return;
+        
+        // 从 PointsManager 获取点数
+        if (typeof PointsManager !== 'undefined') {
+            // 职业点数
+            if (PointsManager.totalJobPoints === null) {
+                jobEl.textContent = '--';
+                jobEl.className = 'value';
+            } else {
+                const jobRemain = PointsManager.totalJobPoints - PointsManager.usedJobPoints;
+                jobEl.textContent = jobRemain;
+                jobEl.className = 'value';
+                if (jobRemain === 0) jobEl.classList.add('zero');
+                else if (jobRemain < 0) jobEl.classList.add('negative');
+            }
+            
+            // 兴趣点数
+            if (PointsManager.totalHobbyPoints === null) {
+                hobbyEl.textContent = '--';
+                hobbyEl.className = 'value';
+            } else {
+                const hobbyRemain = PointsManager.totalHobbyPoints - PointsManager.usedHobbyPoints;
+                hobbyEl.textContent = hobbyRemain;
+                hobbyEl.className = 'value';
+                if (hobbyRemain === 0) hobbyEl.classList.add('zero');
+                else if (hobbyRemain < 0) hobbyEl.classList.add('negative');
+            }
+        }
     },
 
     // 隐藏浮动面板

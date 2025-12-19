@@ -253,6 +253,7 @@ class Database:
                         occupation_skills JSON,
                         random_sets JSON,
                         approved BOOLEAN DEFAULT FALSE,
+                        status TINYINT DEFAULT 0 COMMENT '0=草稿, 1=已提交, 2=审核通过',
                         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                         INDEX idx_user (user_id),
                         INDEX idx_token (token)
@@ -300,6 +301,20 @@ class Database:
                     await cur.execute("""
                         ALTER TABLE character_reviews 
                         ADD COLUMN random_sets JSON AFTER occupation_skills
+                    """)
+
+                # 添加 status 列（如果不存在）
+                await cur.execute("""
+                    SELECT COUNT(*) FROM information_schema.COLUMNS 
+                    WHERE TABLE_SCHEMA = DATABASE() 
+                    AND TABLE_NAME = 'character_reviews' 
+                    AND COLUMN_NAME = 'status'
+                """)
+                row = await cur.fetchone()
+                if row[0] == 0:
+                    await cur.execute("""
+                        ALTER TABLE character_reviews 
+                        ADD COLUMN status TINYINT DEFAULT 0 COMMENT '0=草稿, 1=已提交, 2=审核通过' AFTER approved
                     """)
 
                 await cur.execute("""
@@ -557,8 +572,15 @@ class Database:
         image_url: str = None,
         occupation_skills: list = None,
         random_sets: list = None,
+        status: int = 0,
+        draft_only: bool = False,
     ):
-        """保存角色卡审核记录"""
+        """
+        保存角色卡审核记录
+        
+        Args:
+            draft_only: 如果为True，仅当记录状态为草稿(0)时才更新，防止覆盖已提交的数据
+        """
         from .repositories import CharacterReview
 
         review = CharacterReview(
@@ -571,8 +593,12 @@ class Database:
             occupation_skills=occupation_skills,
             random_sets=random_sets,
             approved=False,
+            status=status,
         )
-        await self.reviews.save(review)
+        if draft_only:
+            await self.reviews.save_draft(review)
+        else:
+            await self.reviews.save(review)
 
     async def get_character_review(self, char_name: str) -> Optional[dict]:
         """获取角色卡审核记录"""
@@ -588,9 +614,14 @@ class Database:
                 "occupation_skills": review.occupation_skills,
                 "random_sets": review.random_sets,
                 "approved": review.approved,
+                "status": review.status,
                 "created_at": review.created_at,
             }
         return None
+
+    async def set_review_status(self, char_name: str, status: int):
+        """设置审核状态码 (0=草稿, 1=已提交, 2=审核通过)"""
+        await self.reviews.set_status(char_name, status)
 
     async def update_review_image_url(self, char_name: str, image_url: str):
         """更新审核记录的图片 URL"""
