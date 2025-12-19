@@ -758,6 +758,50 @@ class NPCCommand(BaseCommand):
 
     # ===== 模板管理 =====
     
+    # 基础属性名称（用于自动识别）
+    BASE_ATTR_NAMES = {
+        "力量": "STR", "str": "STR", "STR": "STR",
+        "体质": "CON", "con": "CON", "CON": "CON",
+        "体型": "SIZ", "siz": "SIZ", "SIZ": "SIZ",
+        "敏捷": "DEX", "dex": "DEX", "DEX": "DEX",
+        "外貌": "APP", "app": "APP", "APP": "APP",
+        "智力": "INT", "int": "INT", "INT": "INT", "灵感": "INT",
+        "意志": "POW", "pow": "POW", "POW": "POW", "精神": "POW",
+        "教育": "EDU", "edu": "EDU", "EDU": "EDU",
+        "幸运": "LUK", "luk": "LUK", "LUK": "LUK", "运气": "LUK",
+    }
+    
+    def _parse_template_text(self, text: str) -> tuple[dict, dict]:
+        """
+        解析模板文本，自动识别属性和技能
+        
+        格式: 名称 值表达式 名称 值表达式 ...
+        值表达式: 骰子公式(3d6+6) 或 范围(20-30) 或 固定值(50)
+        
+        返回: (attributes, skills)
+        """
+        attributes = {}
+        skills = {}
+        
+        # 按空格分割，每两个为一组（名称 + 值）
+        parts = text.split()
+        i = 0
+        while i < len(parts) - 1:
+            name = parts[i]
+            value_expr = parts[i + 1]
+            
+            # 检查是否是属性名
+            if name in self.BASE_ATTR_NAMES:
+                attr_key = self.BASE_ATTR_NAMES[name]
+                attributes[attr_key] = value_expr
+            else:
+                # 否则视为技能
+                skills[name] = value_expr
+            
+            i += 2
+        
+        return attributes, skills
+    
     async def _template_add(self, args: str) -> CommandResult:
         """添加 NPC 模板"""
         args = args.strip()
@@ -765,78 +809,59 @@ class NPCCommand(BaseCommand):
         if not args or args.lower() == "help":
             return CommandResult.text(
                 "**添加 NPC 模板**\n"
-                "格式: `.npc add <模板名> <JSON>`\n\n"
-                "**JSON 格式示例:**\n"
-                "```json\n"
-                '{"attr_min": 50, "attr_max": 70, "skill_min": 50, "skill_max": 60}\n'
-                "```\n\n"
-                "**完整示例:**\n"
-                "```json\n"
-                '{"attr_min": 60, "attr_max": 80, "skill_min": 55, "skill_max": 70, '
-                '"description": "精英敌人", '
-                '"custom_skills": ["射击", "格斗", "闪避", "侦查"]}\n'
-                "```\n\n"
-                "**可选字段:**\n"
-                "• `attr_min/attr_max` - 属性范围 (默认 40-60)\n"
-                "• `skill_min/skill_max` - 技能范围 (默认 40-50)\n"
-                "• `description` - 模板描述\n"
-                "• `custom_attributes` - 自定义属性列表\n"
-                "• `custom_skills` - 自定义技能列表"
+                "格式: `.npc add <模板名> <属性/技能定义>`\n\n"
+                "**值表达式:**\n"
+                "• 骰子公式: `3d6+6` → 结果×5\n"
+                "• 范围: `20-30` → 随机整数\n"
+                "• 固定值: `50`\n\n"
+                "**示例:**\n"
+                "`.npc add 深潜者 力量 3d6+6 体质 3d6+20 敏捷 3d6 格斗 3d6 闪避 20-30`\n\n"
+                "**支持的属性名:**\n"
+                "力量/STR, 体质/CON, 体型/SIZ, 敏捷/DEX, 外貌/APP, 智力/INT, 意志/POW, 教育/EDU\n\n"
+                "其他名称自动识别为技能"
             )
         
-        # 解析模板名和 JSON
+        # 解析模板名和定义
         parts = args.split(maxsplit=1)
         if len(parts) < 2:
-            return CommandResult.text("格式: `.npc add <模板名> <JSON>`\n使用 `.npc add help` 查看示例")
+            return CommandResult.text("格式: `.npc add <模板名> <属性/技能定义>`\n使用 `.npc add help` 查看示例")
         
         template_name = parts[0]
-        json_str = parts[1].strip()
-        
-        # 处理 KOOK 消息中的转义字符
-        json_str = json_str.replace("\\[", "[").replace("\\]", "]")
+        definition = parts[1].strip()
         
         # 检查是否为内置模板
         existing = await self.ctx.db.npc_templates.find_by_name(template_name)
         if existing and existing.is_builtin:
             return CommandResult.text(f"❌ 无法覆盖内置模板: {template_name}")
         
-        # 解析 JSON
+        # 解析属性和技能
         try:
-            data = json.loads(json_str)
-        except json.JSONDecodeError as e:
-            return CommandResult.text(f"❌ JSON 格式错误: {e}")
+            attributes, skills = self._parse_template_text(definition)
+        except Exception as e:
+            return CommandResult.text(f"❌ 解析失败: {e}")
         
-        # 验证字段
-        attr_min = data.get("attr_min", 40)
-        attr_max = data.get("attr_max", 60)
-        skill_min = data.get("skill_min", 40)
-        skill_max = data.get("skill_max", 50)
-        
-        if not (1 <= attr_min <= attr_max <= 200):
-            return CommandResult.text("❌ 属性范围无效 (需要 1 <= attr_min <= attr_max <= 200)")
-        if not (1 <= skill_min <= skill_max <= 200):
-            return CommandResult.text("❌ 技能范围无效 (需要 1 <= skill_min <= skill_max <= 200)")
+        if not attributes and not skills:
+            return CommandResult.text("❌ 未识别到任何属性或技能\n使用 `.npc add help` 查看格式")
         
         # 创建模板
         template = NPCTemplate(
             name=template_name,
-            attr_min=attr_min,
-            attr_max=attr_max,
-            skill_min=skill_min,
-            skill_max=skill_max,
-            description=data.get("description", ""),
-            custom_attributes=data.get("custom_attributes", []),
-            custom_skills=data.get("custom_skills", []),
+            attributes=attributes,
+            skills=skills,
+            description="",
             is_builtin=False,
         )
         
         await self.ctx.db.npc_templates.save(template)
         
         action = "更新" if existing else "添加"
+        attr_list = ", ".join(f"{k}={v}" for k, v in attributes.items()) if attributes else "无"
+        skill_list = ", ".join(f"{k}={v}" for k, v in skills.items()) if skills else "无"
+        
         return CommandResult.text(
             f"✅ 模板 **{template_name}** {action}成功\n"
-            f"属性范围: {attr_min}-{attr_max}\n"
-            f"技能范围: {skill_min}-{skill_max}"
+            f"属性: {attr_list}\n"
+            f"技能: {skill_list}"
         )
     
     async def _template_show(self, args: str) -> CommandResult:
@@ -854,13 +879,19 @@ class NPCCommand(BaseCommand):
             lines.append("(内置模板)")
         if template.description:
             lines.append(f"描述: {template.description}")
-        lines.append(f"属性范围: {template.attr_min}-{template.attr_max}")
-        lines.append(f"技能范围: {template.skill_min}-{template.skill_max}")
         
-        if template.custom_attributes:
-            lines.append(f"自定义属性: {', '.join(template.custom_attributes)}")
-        if template.custom_skills:
-            lines.append(f"自定义技能: {', '.join(template.custom_skills)}")
+        # 新格式模板
+        if template.attributes:
+            attr_list = ", ".join(f"{k}={v}" for k, v in template.attributes.items())
+            lines.append(f"属性: {attr_list}")
+        elif template.is_legacy_format():
+            lines.append(f"属性范围: {template.attr_min}-{template.attr_max}")
+        
+        if template.skills:
+            skill_list = ", ".join(f"{k}={v}" for k, v in template.skills.items())
+            lines.append(f"技能: {skill_list}")
+        elif template.is_legacy_format():
+            lines.append(f"技能范围: {template.skill_min}-{template.skill_max}")
         
         return CommandResult.text("\n".join(lines))
     
@@ -873,7 +904,14 @@ class NPCCommand(BaseCommand):
         lines = ["**NPC 模板列表**"]
         for t in templates:
             builtin_mark = " (内置)" if t.is_builtin else ""
-            lines.append(f"• **{t.name}**{builtin_mark}: 属性 {t.attr_min}-{t.attr_max}, 技能 {t.skill_min}-{t.skill_max}")
+            if t.attributes:
+                # 新格式
+                attr_count = len(t.attributes)
+                skill_count = len(t.skills)
+                lines.append(f"• **{t.name}**{builtin_mark}: {attr_count}属性, {skill_count}技能")
+            else:
+                # 旧格式
+                lines.append(f"• **{t.name}**{builtin_mark}: 属性 {t.attr_min}-{t.attr_max}, 技能 {t.skill_min}-{t.skill_max}")
         
         lines.append("\n使用 `.npc show <模板名>` 查看详情")
         return CommandResult.text("\n".join(lines))

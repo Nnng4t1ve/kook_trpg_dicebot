@@ -46,12 +46,17 @@ def _round_to_5(value: int) -> int:
 
 
 def _calc_derived_stats(attributes: dict) -> tuple:
-    """计算派生属性"""
-    hp = (attributes["CON"] + attributes["SIZ"]) // 10
-    mp = attributes["POW"] // 5
-    san = attributes["POW"]
+    """计算派生属性，缺失的属性视为 0"""
+    con = attributes.get("CON", 0)
+    siz = attributes.get("SIZ", 0)
+    pow_val = attributes.get("POW", 0)
+    str_val = attributes.get("STR", 0)
     
-    str_siz = attributes["STR"] + attributes["SIZ"]
+    hp = (con + siz) // 10 if (con + siz) > 0 else 1
+    mp = pow_val // 5 if pow_val > 0 else 0
+    san = pow_val
+    
+    str_siz = str_val + siz
     if str_siz <= 64:
         build, db = -2, "-2"
     elif str_siz <= 84:
@@ -84,29 +89,31 @@ def generate_npc_from_template(
     Returns:
         生成的 Character 对象
     """
-    # 使用自定义属性列表或默认列表
-    attr_list = template.custom_attributes if template.custom_attributes else BASE_ATTRIBUTES
-    skill_list = template.custom_skills if template.custom_skills else COMBAT_SKILLS
-    
-    # 生成基础属性 (5的倍数)
     attributes = {}
-    for attr in attr_list:
-        raw_value = random.randint(template.attr_min, template.attr_max)
-        attributes[attr] = _round_to_5(raw_value)
+    skills = {}
     
-    # 确保基础属性存在（用于计算派生属性）
-    for attr in BASE_ATTRIBUTES:
-        if attr not in attributes:
+    # 检查是否为新格式模板（有 attributes 字典）
+    if template.attributes:
+        # 新格式：使用模板的 generate 方法
+        attributes = template.generate_attributes()
+        skills = template.generate_skills()
+        # 不自动补全缺失属性，怪物可能没有 APP/EDU 等
+    else:
+        # 旧格式：使用 attr_min/attr_max 范围
+        for attr in BASE_ATTRIBUTES:
             raw_value = random.randint(template.attr_min, template.attr_max)
             attributes[attr] = _round_to_5(raw_value)
+        
+        for skill in COMBAT_SKILLS:
+            raw_value = random.randint(template.skill_min, template.skill_max)
+            skills[skill] = _round_to_5(raw_value)
     
-    # 生成技能
-    skills = {}
-    for skill in skill_list:
-        raw_value = random.randint(template.skill_min, template.skill_max)
-        skills[skill] = _round_to_5(raw_value)
+    # 幸运必须补全，默认 3d6×5
+    if "LUK" not in attributes:
+        attributes["LUK"] = sum(random.randint(1, 6) for _ in range(3)) * 5
     
     hp, mp, san, build, db = _calc_derived_stats(attributes)
+    luck = attributes["LUK"]
 
     return Character(
         name=name,
@@ -119,7 +126,7 @@ def generate_npc_from_template(
         max_mp=mp,
         san=san,
         max_san=99,
-        luck=random.randint(15, 90),
+        luck=luck,
         build=build,
         db=db,
     )
