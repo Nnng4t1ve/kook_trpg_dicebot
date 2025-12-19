@@ -502,7 +502,7 @@ class MessageHandler:
         level_values = {
             SuccessLevel.CRITICAL: 4, SuccessLevel.EXTREME: 3,
             SuccessLevel.HARD: 2, SuccessLevel.REGULAR: 1,
-            SuccessLevel.FAILURE: 0, SuccessLevel.FUMBLE: 0,
+            SuccessLevel.FAILURE: 0, SuccessLevel.FUMBLE: -1,
         }
         level_num = level_values[result.level]
 
@@ -532,7 +532,7 @@ class MessageHandler:
             target_char = await self.char_manager.get_active(check.target_id)
             target_name = target_char.name if target_char else f"(met){check.target_id}(met)"
 
-        level_names = {4: "大成功", 3: "极难成功", 2: "困难成功", 1: "成功", 0: "失败"}
+        level_names = {4: "大成功", 3: "极难成功", 2: "困难成功", 1: "成功", 0: "失败", -1: "大失败"}
         init_level_text = level_names.get(check.initiator_level, "失败")
         target_level_text = level_names.get(check.target_level, "失败")
 

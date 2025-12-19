@@ -337,7 +337,7 @@ class OpposedCheckCommand(BaseCommand):
         level_values = {
             SuccessLevel.CRITICAL: 4, SuccessLevel.EXTREME: 3,
             SuccessLevel.HARD: 2, SuccessLevel.REGULAR: 1,
-            SuccessLevel.FAILURE: 0, SuccessLevel.FUMBLE: 0,
+            SuccessLevel.FAILURE: 0, SuccessLevel.FUMBLE: -1,
         }
         npc_level = level_values[npc_result.level]
         
