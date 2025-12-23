@@ -12,11 +12,13 @@ const ReviewManager = {
         this.userId = userId;
     },
 
-    // 将 input 转换为文本（用于截图）
+    // 将 input 和 textarea 转换为文本（用于截图）
     convertInputsToText(container) {
         const inputs = container.querySelectorAll('input[type="number"], input[type="text"]');
+        const textareas = container.querySelectorAll('textarea');
         const restoreList = [];
 
+        // 处理 input 元素
         inputs.forEach(input => {
             const value = input.value || '0';
             const span = document.createElement('span');
@@ -37,6 +39,35 @@ const ReviewManager = {
             input.style.display = 'none';
             input.parentNode.insertBefore(span, input.nextSibling);
             restoreList.push({ input, span });
+        });
+
+        // 处理 textarea 元素
+        textareas.forEach(textarea => {
+            const value = textarea.value || '';
+            const div = document.createElement('div');
+            div.textContent = value;
+            div.className = 'textarea-snapshot';
+            const computedStyle = window.getComputedStyle(textarea);
+            div.style.cssText = `
+                display: block;
+                width: ${textarea.offsetWidth}px;
+                min-height: ${textarea.offsetHeight}px;
+                padding: ${computedStyle.padding};
+                color: #fff;
+                background: rgba(0, 0, 0, 0.3);
+                border-radius: 6px;
+                font-size: ${computedStyle.fontSize};
+                font-family: ${computedStyle.fontFamily};
+                line-height: ${computedStyle.lineHeight};
+                white-space: pre-wrap;
+                word-wrap: break-word;
+                overflow-wrap: anywhere;
+                box-sizing: border-box;
+            `;
+
+            textarea.style.display = 'none';
+            textarea.parentNode.insertBefore(div, textarea.nextSibling);
+            restoreList.push({ input: textarea, span: div });
         });
 
         return restoreList;
@@ -133,6 +164,10 @@ const ReviewManager = {
 
             btn.textContent = '📤 提交审核中...';
 
+            // 获取本职技能和随机属性组
+            const occupationSkills = CacheManager.getOccupationSkills();
+            const randomSets = CacheManager.getRandomSets();
+
             const resp = await fetch('/api/character/review', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -141,6 +176,8 @@ const ReviewManager = {
                     char_name: data.name,
                     image_data: imageData,
                     char_data: data,
+                    occupation_skills: occupationSkills,
+                    random_sets: randomSets,
                 }),
             });
             const result = await resp.json();
@@ -149,6 +186,9 @@ const ReviewManager = {
                 document.getElementById('exportText').value = `.cc ${data.name}`;
                 document.getElementById('exportResult').style.display = 'block';
                 showToast('审核已提交！在 KOOK 中使用 .cc ' + data.name + ' 发起审核', 'success');
+                // 提交成功后停止自动保存并更新状态
+                CacheManager.stopAutoSave();
+                CacheManager.updateStatusForSubmitted();
                 // 提交成功后开始轮询审核状态
                 this.startPolling();
             } else {

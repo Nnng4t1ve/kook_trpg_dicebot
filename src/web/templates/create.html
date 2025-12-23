@@ -255,13 +255,17 @@
 
             <!-- 背景故事 -->
             <div class="card">
-                <h2>📖 背景故事</h2>
+                <h2>📖 背景故事
+                    <button type="button" class="btn-random" id="randomAllBackstoryBtn">🎲 全部随机</button>
+                    <button type="button" class="btn-random btn-ai-polish" id="aiPolishBackstoryBtn" style="display:none;">🤖 AI润色</button>
+                </h2>
                 <p class="hint" style="margin-bottom:12px;">请务必在此填写背景故事！使用 Alt+Enter 换行</p>
                 <table class="backstory-table">
                     <thead>
                         <tr>
                             <th style="width:100px;">项目</th>
                             <th>内容</th>
+                            <th style="width:40px;">随机</th>
                             <th style="width:50px;">关键连接</th>
                         </tr>
                     </thead>
@@ -270,48 +274,56 @@
                             <td class="backstory-label">形象描述</td>
                             <td><textarea class="backstory-input" name="appearance"
                                     placeholder="描述角色的外貌特征..."></textarea></td>
+                            <td><button type="button" class="btn-backstory-random" data-field="appearance">随机</button></td>
                             <td><input type="checkbox" class="key-connection" name="appearance_key"></td>
                         </tr>
                         <tr class="backstory-row">
                             <td class="backstory-label">思想与信念</td>
                             <td><textarea class="backstory-input" name="ideology" placeholder="角色的信仰、价值观..."></textarea>
                             </td>
+                            <td><button type="button" class="btn-backstory-random" data-field="ideology">随机</button></td>
                             <td><input type="checkbox" class="key-connection" name="ideology_key"></td>
                         </tr>
                         <tr class="backstory-row">
                             <td class="backstory-label">重要之人</td>
                             <td><textarea class="backstory-input" name="significant_people"
                                     placeholder="对角色重要的人..."></textarea></td>
+                            <td><button type="button" class="btn-backstory-random" data-field="significant_people">随机</button></td>
                             <td><input type="checkbox" class="key-connection" name="significant_people_key"></td>
                         </tr>
                         <tr class="backstory-row">
                             <td class="backstory-label">意义非凡之地</td>
                             <td><textarea class="backstory-input" name="meaningful_locations"
                                     placeholder="对角色有特殊意义的地点..."></textarea></td>
+                            <td><button type="button" class="btn-backstory-random" data-field="meaningful_locations">随机</button></td>
                             <td><input type="checkbox" class="key-connection" name="meaningful_locations_key"></td>
                         </tr>
                         <tr class="backstory-row">
                             <td class="backstory-label">宝贵之物</td>
                             <td><textarea class="backstory-input" name="treasured_possessions"
                                     placeholder="角色珍视的物品..."></textarea></td>
+                            <td><button type="button" class="btn-backstory-random" data-field="treasured_possessions">随机</button></td>
                             <td><input type="checkbox" class="key-connection" name="treasured_possessions_key"></td>
                         </tr>
                         <tr class="backstory-row">
                             <td class="backstory-label">特质</td>
                             <td><textarea class="backstory-input" name="traits" placeholder="角色的性格特点..."></textarea>
                             </td>
+                            <td><button type="button" class="btn-backstory-random" data-field="traits">随机</button></td>
                             <td><input type="checkbox" class="key-connection" name="traits_key"></td>
                         </tr>
                         <tr class="backstory-row">
                             <td class="backstory-label">伤口和伤疤</td>
-                            <td><textarea class="backstory-input" name="injuries" placeholder="角色身上的伤痕..."></textarea>
+                            <td><textarea class="backstory-input" name="injuries" placeholder="角色身上的伤痕...">无</textarea>
                             </td>
+                            <td></td>
                             <td><input type="checkbox" class="key-connection" name="injuries_key"></td>
                         </tr>
                         <tr class="backstory-row">
                             <td class="backstory-label">恐惧症和躁狂症</td>
-                            <td><textarea class="backstory-input" name="phobias" placeholder="角色的恐惧或狂躁..."></textarea>
+                            <td><textarea class="backstory-input" name="phobias" placeholder="角色的恐惧或狂躁...">无</textarea>
                             </td>
+                            <td></td>
                             <td><input type="checkbox" class="key-connection" name="phobias_key"></td>
                         </tr>
                     </tbody>
@@ -368,6 +380,7 @@
     <script src="/static/js/create-occupation.js"></script>
     <script src="/static/js/create-cache.js"></script>
     <script src="/static/js/create-ai.js"></script>
+    <script src="/static/js/create-backstory.js"></script>
     <script src="/static/js/create-main.js"></script>
 
     <!-- 职业查询和本职技能绑定 -->

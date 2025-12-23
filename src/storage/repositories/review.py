@@ -18,6 +18,7 @@ class CharacterReview:
     occupation_skills: Optional[List[str]] = None  # 本职技能列表
     random_sets: Optional[List[dict]] = None  # 随机属性组
     approved: bool = False
+    status: int = 0  # 0=草稿/缓存中, 1=已提交待审核, 2=审核通过
     created_at: Optional[datetime] = None
 
 
@@ -36,6 +37,7 @@ class ReviewRepository(BaseRepository[CharacterReview]):
     - occupation_skills: JSON (本职技能列表)
     - random_sets: JSON (随机属性组)
     - approved: BOOLEAN DEFAULT FALSE
+    - status: TINYINT DEFAULT 0 (0=草稿, 1=已提交, 2=审核通过)
     - created_at: TIMESTAMP
     """
 
@@ -57,6 +59,7 @@ class ReviewRepository(BaseRepository[CharacterReview]):
             ),
             random_sets=self._deserialize_json(row_dict.get("random_sets", "[]")),
             approved=bool(row_dict.get("approved", False)),
+            status=int(row_dict.get("status", 0)),
             created_at=row_dict.get("created_at"),
         )
 
@@ -72,6 +75,7 @@ class ReviewRepository(BaseRepository[CharacterReview]):
             "occupation_skills": self._serialize_json(entity.occupation_skills or []),
             "random_sets": self._serialize_json(entity.random_sets or []),
             "approved": entity.approved,
+            "status": entity.status,
         }
     
     async def find_by_char_name(self, char_name: str) -> Optional[CharacterReview]:
@@ -122,8 +126,8 @@ class ReviewRepository(BaseRepository[CharacterReview]):
         """
         sql = """
             INSERT INTO character_reviews 
-            (char_name, user_id, token, image_data, image_url, char_data, occupation_skills, random_sets, approved) 
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s) AS new_values
+            (char_name, user_id, token, image_data, image_url, char_data, occupation_skills, random_sets, approved, status) 
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s) AS new_values
             ON DUPLICATE KEY UPDATE 
             token = new_values.token,
             image_data = new_values.image_data,
@@ -132,6 +136,7 @@ class ReviewRepository(BaseRepository[CharacterReview]):
             occupation_skills = new_values.occupation_skills,
             random_sets = new_values.random_sets,
             approved = new_values.approved,
+            status = new_values.status,
             created_at = CURRENT_TIMESTAMP
         """
         return await self.execute(
@@ -146,8 +151,60 @@ class ReviewRepository(BaseRepository[CharacterReview]):
                 self._serialize_json(review.occupation_skills or []),
                 self._serialize_json(review.random_sets or []),
                 review.approved,
+                review.status,
             ),
         )
+
+    async def save_draft(self, review: CharacterReview) -> int:
+        """
+        保存草稿（仅当状态为草稿时才更新，防止覆盖已提交的数据）
+        
+        Args:
+            review: 审核记录对象
+        
+        Returns:
+            受影响的行数
+        """
+        sql = """
+            INSERT INTO character_reviews 
+            (char_name, user_id, token, image_data, image_url, char_data, occupation_skills, random_sets, approved, status) 
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s) AS new_values
+            ON DUPLICATE KEY UPDATE 
+            token = CASE WHEN character_reviews.status = 0 THEN new_values.token ELSE character_reviews.token END,
+            char_data = CASE WHEN character_reviews.status = 0 THEN new_values.char_data ELSE character_reviews.char_data END,
+            occupation_skills = CASE WHEN character_reviews.status = 0 THEN new_values.occupation_skills ELSE character_reviews.occupation_skills END,
+            random_sets = CASE WHEN character_reviews.status = 0 THEN new_values.random_sets ELSE character_reviews.random_sets END,
+            created_at = CASE WHEN character_reviews.status = 0 THEN CURRENT_TIMESTAMP ELSE character_reviews.created_at END
+        """
+        return await self.execute(
+            sql,
+            (
+                review.char_name,
+                review.user_id,
+                review.token,
+                review.image_data,
+                review.image_url,
+                self._serialize_json(review.char_data),
+                self._serialize_json(review.occupation_skills or []),
+                self._serialize_json(review.random_sets or []),
+                review.approved,
+                review.status,
+            ),
+        )
+
+    async def set_status(self, char_name: str, status: int) -> int:
+        """
+        设置审核状态码
+        
+        Args:
+            char_name: 角色名
+            status: 状态码 (0=草稿, 1=已提交, 2=审核通过)
+        
+        Returns:
+            受影响的行数
+        """
+        sql = "UPDATE character_reviews SET status = %s WHERE char_name = %s"
+        return await self.execute(sql, (status, char_name))
     
     async def update_image_url(self, char_name: str, image_url: str) -> int:
         """

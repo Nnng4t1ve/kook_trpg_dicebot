@@ -19,6 +19,8 @@ class ReviewSubmitRequest(BaseModel):
     char_name: str
     image_data: str  # base64 编码的图片
     char_data: dict  # 角色数据
+    occupation_skills: list = []  # 本职技能列表
+    random_sets: list = []  # 随机属性组
 
 
 class CacheRequest(BaseModel):
@@ -82,6 +84,20 @@ class GenerateBackstoryResponse(BaseModel):
     cooldown_remaining: int = 0  # 剩余冷却秒数
 
 
+class PolishBackstoryRequest(BaseModel):
+    """AI润色背景故事请求"""
+    token: str
+    char_info: dict  # 角色信息
+
+
+class PolishBackstoryResponse(BaseModel):
+    """AI润色背景故事响应"""
+    success: bool
+    data: dict = {}  # 润色后的各项内容
+    error: str = ""
+    cooldown_remaining: int = 0
+
+
 class LLMStatusResponse(BaseModel):
     """LLM服务状态响应"""
     enabled: bool
@@ -112,7 +128,7 @@ async def cache_character(
     char_data = body.char_data.copy()
     char_data["_cached"] = True
 
-    # 保存到数据库（token单独存列，不包含图片，approved=False）
+    # 保存到数据库（使用draft_only=True，仅当状态为草稿时才更新，防止覆盖已提交的数据）
     await db.save_character_review(
         char_name=body.char_name,
         user_id=user_id,
@@ -121,6 +137,8 @@ async def cache_character(
         token=body.token,
         occupation_skills=body.occupation_skills,
         random_sets=body.random_sets,
+        status=0,  # 草稿状态
+        draft_only=True,  # 仅当状态为草稿时才更新
     )
 
     cached_at = datetime.now().isoformat()
@@ -150,13 +168,15 @@ async def get_cached_character(
     # 根据token查找缓存数据
     review = await db.reviews.find_by_token(token)
 
-    if review and not review.approved and review.char_data.get("_cached"):
+    # 返回草稿(status=0)或已提交(status=1)的数据
+    if review and review.status in (0, 1):
         return {
             "success": True,
             "char_name": review.char_name,
             "char_data": review.char_data,
             "occupation_skills": review.occupation_skills or [],
             "random_sets": review.random_sets or [],
+            "status": review.status,  # 返回状态码，前端可据此判断
             "created_at": (
                 review.created_at.isoformat() if review.created_at else None
             ),
@@ -181,20 +201,38 @@ async def submit_review(
     if not body.char_name or not body.image_data or not body.char_data:
         raise HTTPException(status_code=400, detail="缺少必要参数")
     
+    # 获取已缓存的数据，如果前端没传 occupation_skills/random_sets，使用缓存的
+    occupation_skills = body.occupation_skills
+    random_sets = body.random_sets
+    
+    if not occupation_skills or not random_sets:
+        existing = await db.reviews.find_by_token(body.token)
+        if existing:
+            if not occupation_skills:
+                occupation_skills = existing.occupation_skills or []
+            if not random_sets:
+                random_sets = existing.random_sets or []
+    
     # 标记为正式提交
     char_data = body.char_data.copy()
     char_data["_cached"] = False
 
-    # 保存到数据库（token单独存列）
+    # 保存到数据库（status=1 表示已提交待审核，后续自动保存不会覆盖）
     await db.save_character_review(
         char_name=body.char_name,
         user_id=user_id,
         image_data=body.image_data,
         char_data=char_data,
         token=body.token,
+        occupation_skills=occupation_skills,
+        random_sets=random_sets,
+        status=1,  # 已提交待审核
     )
     
-    logger.info(f"角色卡审核提交: {body.char_name} by {user_id}")
+    logger.info(
+        f"角色卡审核提交: {body.char_name} by {user_id}, "
+        f"本职技能: {len(occupation_skills)}个, 图片大小: {len(body.image_data)}字节"
+    )
     return {"success": True, "message": f"角色卡 {body.char_name} 已提交审核"}
 
 
@@ -489,5 +527,64 @@ async def generate_backstory(
         "success": result.success,
         "content": result.content,
         "error": result.error,
+        "cooldown_remaining": llm.get_cooldown_remaining(user_id)
+    }
+
+
+@router.post("/llm/polish-backstory", response_model=PolishBackstoryResponse)
+async def polish_backstory(
+    request: Request,
+    body: PolishBackstoryRequest,
+):
+    """AI润色背景故事要素"""
+    from ...services.llm import get_llm_service
+    
+    token_service = get_token_service(request)
+    user_id = token_service.validate(body.token, "create")
+    if not user_id:
+        raise HTTPException(status_code=403, detail="链接已过期，请重新获取")
+    
+    llm = get_llm_service()
+    
+    if not llm.enabled:
+        return {
+            "success": False,
+            "error": "AI润色功能未启用",
+            "cooldown_remaining": 0
+        }
+    
+    # 检查冷却
+    remaining = llm.get_cooldown_remaining(user_id)
+    if remaining > 0:
+        return {
+            "success": False,
+            "error": f"请求冷却中",
+            "cooldown_remaining": remaining
+        }
+    
+    # 构建提示词并生成
+    prompt = llm.build_polish_backstory_prompt(body.char_info)
+    result = await llm.generate(prompt, user_id)
+    
+    if not result.success:
+        return {
+            "success": False,
+            "error": result.error,
+            "cooldown_remaining": llm.get_cooldown_remaining(user_id)
+        }
+    
+    # 解析JSON响应
+    parsed_data = llm.parse_polish_response(result.content)
+    
+    if not parsed_data:
+        return {
+            "success": False,
+            "error": "AI返回格式解析失败，请重试",
+            "cooldown_remaining": llm.get_cooldown_remaining(user_id)
+        }
+    
+    return {
+        "success": True,
+        "data": parsed_data,
         "cooldown_remaining": llm.get_cooldown_remaining(user_id)
     }

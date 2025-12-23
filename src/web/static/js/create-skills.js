@@ -181,22 +181,31 @@ const SkillManager = {
     },
     
     // 获取技能详细数据（包含职业点和兴趣点分配）
+    // 使用行 ID 作为 key，避免同名技能（如多个"科学："）互相覆盖
     getDetailedData() {
         const skills = {};
 
         document.querySelectorAll('.skill-row').forEach(row => {
-            let skillName = row.dataset.skill;
+            const rowId = row.id;  // 使用行 ID（如 skill_0, skill_1）作为唯一标识
             const job = parseInt(row.querySelector('.job').value) || 0;
             const hobby = parseInt(row.querySelector('.hobby').value) || 0;
-
+            
+            // 获取自定义名称
             const customNameInput = row.querySelector('.custom-name');
-            if (customNameInput && customNameInput.value.trim()) {
-                skillName = customNameInput.value.trim();
-            }
+            const customName = customNameInput?.value?.trim() || '';
+            
+            // 获取自定义基础值
+            const customBaseInput = row.querySelector('.custom-base');
+            const customBase = customBaseInput ? (parseInt(customBaseInput.value) || 0) : null;
 
-            // 只保存有分配点数的技能
-            if (job > 0 || hobby > 0) {
-                skills[skillName] = { job, hobby };
+            // 只保存有分配点数的技能，或者有自定义内容的技能
+            if (job > 0 || hobby > 0 || customName || customBase !== null) {
+                skills[rowId] = { 
+                    job, 
+                    hobby,
+                    customName: customName || undefined,
+                    customBase: customBase !== null ? customBase : undefined
+                };
             }
         });
 

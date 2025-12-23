@@ -46,7 +46,7 @@ class AdminCommand(BaseCommand):
     """管理员命令"""
     
     description = "机器人管理员命令"
-    usage = ".admin bind / .admin friend list / .admin friend accept <id>"
+    usage = ".admin bind / .admin friend list / .admin llm <秒数>"
     
     async def execute(self, args: str) -> CommandResult:
         args = args.strip()
@@ -56,7 +56,8 @@ class AdminCommand(BaseCommand):
                 "`.admin bind` - 绑定为机器人管理员（仅首次有效）\n"
                 "`.admin friend list` - 查看好友申请列表\n"
                 "`.admin friend accept <user_id>` - 同意好友申请\n"
-                "`.admin friend reject <user_id>` - 拒绝好友申请"
+                "`.admin friend reject <user_id>` - 拒绝好友申请\n"
+                "`.admin llm [秒数]` - 查看/设置AI生成冷却时间"
             )
         
         parts = args.split(maxsplit=1)
@@ -67,6 +68,8 @@ class AdminCommand(BaseCommand):
             return await self._bind_admin()
         elif sub_cmd == "friend":
             return await self._handle_friend(sub_args)
+        elif sub_cmd == "llm":
+            return await self._handle_llm(sub_args)
         else:
             return CommandResult.text(f"未知子命令: {sub_cmd}")
     
@@ -165,3 +168,61 @@ class AdminCommand(BaseCommand):
             return CommandResult.text(f"✅ 已拒绝申请 `{rid}`")
         else:
             return CommandResult.text(f"❌ 操作失败，请检查申请 ID 是否正确")
+
+    async def _handle_llm(self, args: str) -> CommandResult:
+        """处理 LLM 相关命令"""
+        # 检查权限
+        if not is_admin(self.ctx.user_id):
+            return CommandResult.text("❌ 只有管理员可以使用此命令")
+        
+        from ...services.llm import get_llm_service
+        
+        llm = get_llm_service()
+        
+        if not llm.enabled:
+            return CommandResult.text("❌ LLM 服务未启用")
+        
+        args = args.strip()
+        
+        # 无参数时显示当前设置
+        if not args:
+            current = llm.cooldown_seconds
+            minutes = current // 60
+            seconds = current % 60
+            time_str = f"{minutes}分{seconds}秒" if minutes > 0 else f"{seconds}秒"
+            return CommandResult.text(
+                f"**🤖 AI生成设置**\n"
+                f"当前冷却时间: {time_str} ({current}秒)\n"
+                f"使用 `.admin llm <秒数>` 修改冷却时间"
+            )
+        
+        # 设置新的冷却时间
+        try:
+            new_cooldown = int(args)
+        except ValueError:
+            return CommandResult.text("❌ 请输入有效的秒数")
+        
+        if new_cooldown < 0:
+            return CommandResult.text("❌ 冷却时间不能为负数")
+        
+        if new_cooldown > 3600:
+            return CommandResult.text("❌ 冷却时间不能超过1小时(3600秒)")
+        
+        old_cooldown = llm.cooldown_seconds
+        llm.cooldown_seconds = new_cooldown
+        
+        # 清除所有用户的冷却，使新设置立即生效
+        llm.clear_all_cooldowns()
+        
+        # 格式化显示
+        def format_time(secs):
+            m, s = divmod(secs, 60)
+            return f"{m}分{s}秒" if m > 0 else f"{s}秒"
+        
+        logger.info(f"LLM_COOLDOWN_CHANGE | admin={self.ctx.user_id} | old={old_cooldown} | new={new_cooldown}")
+        return CommandResult.text(
+            f"✅ AI生成冷却时间已修改\n"
+            f"原设置: {format_time(old_cooldown)}\n"
+            f"新设置: {format_time(new_cooldown)}\n"
+            f"已清除所有用户的冷却状态"
+        )

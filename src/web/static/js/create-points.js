@@ -65,6 +65,11 @@ const PointsManager = {
             reviewBtn.disabled = false;
             reviewBtn.textContent = '📋 角色卡审核';
         }
+
+        // 更新浮动面板的点数
+        if (typeof OccupationManager !== 'undefined' && OccupationManager.updateFloatingPoints) {
+            OccupationManager.updateFloatingPoints();
+        }
     },
 
     // 计算职业点数

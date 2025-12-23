@@ -85,38 +85,50 @@ def build_push_card(content: str, user_name: str) -> str:
     # 处理多行文本，确保换行符正确
     processed_content = processed_content.replace('\r\n', '\n').replace('\r', '\n')
     
+    # 提取第一行作为标题，剩余内容作为正文
+    lines = processed_content.split('\n', 1)
+    title = f"📌 {lines[0].strip()}"
+    # 保留正文的换行格式，只去掉首尾空白行
+    body_content = lines[1].strip('\n') if len(lines) > 1 else ""
+    
+    modules = [
+        {
+            "type": "header",
+            "text": {
+                "type": "plain-text",
+                "content": title
+            }
+        },
+        {
+            "type": "divider"
+        }
+    ]
+    
+    # 只有当有正文内容时才添加正文模块
+    if body_content:
+        modules.append({
+            "type": "section",
+            "text": {
+                "type": "kmarkdown",
+                "content": body_content
+            }
+        })
+    
+    modules.append({
+        "type": "context",
+        "elements": [
+            {
+                "type": "kmarkdown",
+                "content": f"发布者: {user_name}"
+            }
+        ]
+    })
+    
     card = {
         "type": "card",
         "theme": "info",
         "size": "lg",
-        "modules": [
-            {
-                "type": "header",
-                "text": {
-                    "type": "plain-text",
-                    "content": "📌 置顶公告"
-                }
-            },
-            {
-                "type": "divider"
-            },
-            {
-                "type": "section",
-                "text": {
-                    "type": "kmarkdown",
-                    "content": processed_content
-                }
-            },
-            {
-                "type": "context",
-                "elements": [
-                    {
-                        "type": "kmarkdown",
-                        "content": f"发布者: {user_name}"
-                    }
-                ]
-            }
-        ]
+        "modules": modules
     }
     result = json.dumps([card], ensure_ascii=False)
     logger.debug(f"PUSH_CARD | json={result}")

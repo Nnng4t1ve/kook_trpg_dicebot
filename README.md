@@ -1,5 +1,7 @@
 # 🎲 COC TRPG Dice Bot for KOOK
 
+> ⚠️ **已知问题**: 自动审核 (`.cc <角色名> @机器人`) 生成的角色卡图片 URL 可能返回 404，原因未知。建议使用人工审核 (`.cc <角色名> @KP`) 方式创建角色卡。
+
 一个功能（待）完善的 KOOK 平台 COC (Call of Cthulhu) TRPG 骰子机器人。
 
 ## ✨ 功能特性

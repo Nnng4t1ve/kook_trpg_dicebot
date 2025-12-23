@@ -227,23 +227,48 @@ class CharacterReviewCommand(BaseCommand):
         
         # 检查是否 @ 机器人自己 -> 自动审核通过
         if is_bot(kp_id):
+            # 检查审核状态
+            review_status = review.get("status", 0)
+            if review_status != 1:
+                return CommandResult.text(
+                    f"角色卡 {char_name} 尚未提交审核（当前状态: {review_status}）\n"
+                    "请先在网页上点击「提交审核」按钮"
+                )
+            
             # 自动审核通过，直接创建角色
             char_data = review["char_data"]
             
-            # 处理图片：上传到 KOOK 获取 URL
+            # 处理图片：使用与人工审核完全相同的逻辑
             image_url = review.get("image_url")
             if not image_url:
                 image_data = review.get("image_data")
-                if image_data:
-                    if image_data.startswith("data:image/png;base64,"):
-                        image_data = image_data.split(",", 1)[1]
-                    try:
-                        image_bytes = base64.b64decode(image_data)
-                        image_url = await self.ctx.client.upload_asset(image_bytes, f"{char_name}.png")
-                        if image_url:
-                            logger.info(f"角色卡图片上传成功(自动审核): {char_name} -> {image_url}")
-                    except Exception as e:
-                        logger.warning(f"自动审核时图片上传失败: {e}")
+                if image_data and image_data.startswith("data:image/png;base64,"):
+                    image_data = image_data.split(",", 1)[1]
+                
+                if not image_data:
+                    logger.warning(f"自动审核时没有图片数据: {char_name}")
+                    return CommandResult.text(
+                        f"角色卡 {char_name} 没有图片数据，请重新提交审核"
+                    )
+                
+                try:
+                    image_bytes = base64.b64decode(image_data)
+                except Exception as e:
+                    logger.error(f"解码图片失败: {e}")
+                    return CommandResult.text("图片数据解析失败")
+                
+                # 上传图片到 KOOK（与人工审核完全相同）
+                image_url = await self.ctx.client.upload_asset(image_bytes, f"{char_name}.png")
+                if not image_url:
+                    return CommandResult.text("图片上传失败")
+                
+                # 保存 URL 到数据库（与人工审核相同）
+                await self.ctx.db.update_review_image_url(char_name, image_url)
+                logger.info(f"角色卡图片上传成功(自动审核): {char_name} -> {image_url}")
+                
+                # 等待2秒让KOOK处理图片
+                import asyncio
+                await asyncio.sleep(2)
             
             # 从 inventory 提取物品列表
             items = []
@@ -278,16 +303,20 @@ class CharacterReviewCommand(BaseCommand):
             
             await self.ctx.char_manager.add(char)
             
-            # 使原token失效
-            saved_token = char_data.get("_token")
+            # 自动切换到新创建的角色
+            await self.ctx.char_manager.set_active(self.ctx.user_id, char_data["name"])
+            
+            # 使原token失效（从review记录中获取token，不是从char_data）
+            saved_token = review.get("token")
             if saved_token and self.ctx.web_app:
                 self.ctx.web_app.state.token_service.invalidate(saved_token)
+                logger.info(f"Token已失效: {saved_token[:8]}...")
             
             # 删除审核数据
             await self.ctx.db.delete_character_review(char_name)
             
             logger.info(f"角色卡自动审核通过: {char_name} by {self.ctx.user_id}")
-            return CommandResult.text(f"✅ 角色卡 **{char_name}** 自动审核通过并创建成功！\n使用 `.pc show` 查看")
+            return CommandResult.text(f"✅ 角色卡 **{char_name}** 自动审核通过并创建成功！已自动切换为当前角色")
         
         # 不能让自己审核自己
         if kp_id == self.ctx.user_id:
@@ -316,6 +345,10 @@ class CharacterReviewCommand(BaseCommand):
             
             await self.ctx.db.update_review_image_url(char_name, image_url)
             logger.info(f"角色卡图片上传成功: {char_name} -> {image_url}")
+            
+            # 等待2秒让KOOK处理图片
+            import asyncio
+            await asyncio.sleep(2)
         
         card = CardBuilder.build_character_review_card(
             char_name=char_name,

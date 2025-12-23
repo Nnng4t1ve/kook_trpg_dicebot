@@ -17,6 +17,7 @@ const AIManager = {
     // 绑定事件
     bindEvents() {
         document.getElementById('aiGenerateBtn')?.addEventListener('click', () => this.generate());
+        document.getElementById('aiPolishBackstoryBtn')?.addEventListener('click', () => this.polishBackstory());
     },
     
     // 检查LLM服务状态
@@ -50,43 +51,57 @@ const AIManager = {
     updateUI() {
         const section = document.getElementById('aiGenerateSection');
         const btn = document.getElementById('aiGenerateBtn');
+        const polishBtn = document.getElementById('aiPolishBackstoryBtn');
         
         if (!section) return;
         
         if (!this.enabled) {
             section.style.display = 'none';
+            if (polishBtn) polishBtn.style.display = 'none';
             return;
         }
         
         section.style.display = 'block';
+        if (polishBtn) polishBtn.style.display = 'inline-block';
         this.updateCooldownDisplay();
     },
     
     // 更新冷却显示
     updateCooldownDisplay() {
         const btn = document.getElementById('aiGenerateBtn');
+        const polishBtn = document.getElementById('aiPolishBackstoryBtn');
         const cooldownEl = document.getElementById('aiCooldown');
         
-        if (!btn) return;
-        
         if (this.cooldownRemaining > 0) {
-            btn.disabled = true;
-            btn.classList.add('cooling');
-            
             const minutes = Math.floor(this.cooldownRemaining / 60);
             const seconds = this.cooldownRemaining % 60;
             const timeStr = minutes > 0 ? `${minutes}分${seconds}秒` : `${seconds}秒`;
             
+            if (btn) {
+                btn.disabled = true;
+                btn.classList.add('cooling');
+                btn.textContent = '🤖 冷却中...';
+            }
+            if (polishBtn) {
+                polishBtn.disabled = true;
+                polishBtn.classList.add('cooling');
+                polishBtn.textContent = '🤖 冷却中...';
+            }
             if (cooldownEl) {
                 cooldownEl.textContent = `冷却中: ${timeStr}`;
                 cooldownEl.style.display = 'inline';
             }
-            btn.textContent = '🤖 冷却中...';
         } else {
-            btn.disabled = false;
-            btn.classList.remove('cooling');
-            btn.textContent = '🤖 AI生成详细经历';
-            
+            if (btn) {
+                btn.disabled = false;
+                btn.classList.remove('cooling');
+                btn.textContent = '🤖 AI生成详细经历';
+            }
+            if (polishBtn) {
+                polishBtn.disabled = false;
+                polishBtn.classList.remove('cooling');
+                polishBtn.textContent = '🤖 AI润色';
+            }
             if (cooldownEl) {
                 cooldownEl.style.display = 'none';
             }
@@ -131,6 +146,11 @@ const AIManager = {
                 // 只记录高于基础值的技能
                 if (total > base) {
                     charInfo.skills[skillName] = total;
+                }
+                
+                // 特别记录信用评级（无论是否高于基础值）
+                if (skillName === '信用评级') {
+                    charInfo.credit_rating = total;
                 }
             }
         });
@@ -236,6 +256,88 @@ const AIManager = {
             if (resultEl) {
                 resultEl.innerHTML = `<p class="error">❌ 请求失败: ${err.message}</p>`;
             }
+            showToast('请求失败: ' + err.message, 'error');
+        } finally {
+            this.updateCooldownDisplay();
+        }
+    },
+
+    // AI润色背景故事
+    async polishBackstory() {
+        const btn = document.getElementById('aiPolishBackstoryBtn');
+        
+        if (!btn || btn.disabled) return;
+        
+        // 收集角色信息
+        const charInfo = this.collectCharInfo();
+        
+        // 检查是否有任何背景故事内容
+        const hasContent = Object.values(charInfo.backstory).some(v => v && v.trim());
+        if (!hasContent) {
+            showToast('请先填写或随机一些背景故事内容', 'warning');
+            return;
+        }
+        
+        // 更新UI状态
+        btn.disabled = true;
+        btn.textContent = '🤖 润色中...';
+        
+        try {
+            // 先提交一次缓存
+            if (typeof CacheManager !== 'undefined') {
+                await CacheManager.saveToServer(false);
+            }
+            
+            const resp = await fetch('/api/review/llm/polish-backstory', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    token: APP_TOKEN,
+                    char_info: charInfo
+                })
+            });
+            
+            const result = await resp.json();
+            
+            // 更新冷却时间
+            this.cooldownRemaining = result.cooldown_remaining || 0;
+            
+            if (result.success && result.data) {
+                // 填充润色后的内容
+                const fieldMap = {
+                    'appearance': 'appearance',
+                    'ideology': 'ideology',
+                    'significant_people': 'significant_people',
+                    'meaningful_locations': 'meaningful_locations',
+                    'treasured_possessions': 'treasured_possessions',
+                    'traits': 'traits',
+                    'injuries': 'injuries',
+                    'phobias': 'phobias'
+                };
+                
+                let filledCount = 0;
+                for (const [key, fieldName] of Object.entries(fieldMap)) {
+                    if (result.data[key]) {
+                        const textarea = document.querySelector(`textarea[name="${fieldName}"]`);
+                        if (textarea) {
+                            textarea.value = result.data[key];
+                            // 触发自动调整高度
+                            if (typeof autoResizeTextarea === 'function') {
+                                autoResizeTextarea(textarea);
+                            }
+                            // 触发input事件以便缓存
+                            textarea.dispatchEvent(new Event('input', { bubbles: true }));
+                            filledCount++;
+                        }
+                    }
+                }
+                
+                showToast(`AI润色完成，已更新 ${filledCount} 项`, 'success');
+            } else {
+                showToast(result.error || '润色失败', 'error');
+            }
+        } catch (err) {
+            console.error('AI润色失败:', err);
             showToast('请求失败: ' + err.message, 'error');
         } finally {
             this.updateCooldownDisplay();
